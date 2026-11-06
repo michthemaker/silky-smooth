@@ -9,11 +9,17 @@ pub effect fn main() -> ()
   ! LogError {
   let origin = Point.origin()
   let dot = Point { x: 0.1, y: -0.7 }
-  let pixel = Pixel(0xfff)
-  let pixel_2 = Pixel(0xFF00AA80)
+
+  // r, g, b, a
+  // let pixel = Pixel(0xffaabb00)
+  // r, g,
+  // let pixel = Pixel(0xffaa)
+  // r, g, b,
+  let pixel = Pixel(39, 99, 29, 0)
 
   drop println("{:?} {:?} {:?}  ", &.(origin.y, dot, pixel))
-  drop println("{:?}  ", &.(pixel.unpack()))
-  drop println("{:?}  ", &.(pixel_2.unpack()))
-  run println("Layout of Color: {:?} bytes  ", &.(Layout.of<Color>().bytes))
+  run println("{:?} ", &.(pixel))
+
+  // drop println("{:?}  ", &.(pixel_2.unpack()))
+  run println("Layout of String: {:?} bytes  ", &.(Layout.of<Color>().bytes))
 }

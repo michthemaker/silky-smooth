@@ -1,9 +1,16 @@
 import silk.core.ownership { Copy }
-import silk.text.format { Formatter, Debug, Format, Style }
+import silk.text.format { Formatter, Debug, Format }
 import silk.io.writer { WriterError, Writer }
-import silk.num.u32
 
-pub tuple Pixel(u32)
+/// Unsigned Normalized 8-bit integer
+///
+/// # Details
+///
+/// used for alpha channels in pixels and color
+/// `Pixel(u8, u8, u8, unorm8)`
+pub type unorm8 = u8
+
+pub tuple Pixel(u8, u8, u8, unorm8)
 
 impl Copy for Pixel {}
 
@@ -11,45 +18,6 @@ impl Debug for Pixel {
   effect fn debug(self: &Pixel, formatter: &mut Formatter) -> ()
     ! WriterError
     ? &mut Writer {
-    run Format.writeText(&mut formatter, "Pixel(")
-    let mut options = Format.defaultOptions()
-    options.style = Style.LowerHex
-    options.alternate = true
-    run Format.debugWith(&self.0, move options)
-    run Format.writeText(&mut formatter, ")")
-  }
-}
-
-/// R, G, B, A channels of a Pixel(u32)
-pub tuple RGBA(u8, u8, u8, u8)
-
-impl Copy for RGBA {}
-
-impl Debug for RGBA {
-  effect fn debug(self: &RGBA, _: &mut Formatter) -> ()
-    ! WriterError
-    ? &mut Writer {
-    let mut options = Format.defaultOptions()
-    let mut formatter = Format.make(move options)
-    run Format.debugFields(self, "RGBA", &mut formatter)
-  }
-}
-
-impl Pixel {
-  /// unpacks a Pixel(u32) into RGBA(u8, u8, u8, u8)
-  pub fn unpack(self: &Self) -> RGBA {
-    let R: u8 = u32.shiftRight(self.0, 24)
-      |> u32.bitAnd(0xFF)
-      |> u32.toU8()
-    let G: u8 = u32.shiftRight(self.0, 16)
-      |> u32.bitAnd(0xFF)
-      |> u32.toU8()
-    let B: u8 = u32.shiftRight(self.0, 8)
-      |> u32.bitAnd(0xFF)
-      |> u32.toU8()
-    let A: u8 = u32.shiftRight(self.0, 0)
-      |> u32.bitAnd(0xFF)
-      |> u32.toU8()
-    return RGBA(R, G, B, A)
+    run Format.debugFields(self, "Pixel", &mut formatter)
   }
 }
