@@ -1,0 +1,19 @@
+import println { println }
+import silk.io.logger { LogError }
+import geom.point { Point }
+import buffer.pixels { Pixel }
+import silk.mem.layout { Layout }
+import silk.color.color { Color }
+
+pub effect fn main() -> ()
+  ! LogError {
+  let origin = Point.origin()
+  let dot = Point { x: 0.1, y: -0.7 }
+  let pixel = Pixel(0xfff)
+  let pixel_2 = Pixel(0xFF00AA80)
+
+  drop println("{:?} {:?} {:?}  ", &.(origin.y, dot, pixel))
+  drop println("{:?}  ", &.(pixel.unpack()))
+  drop println("{:?}  ", &.(pixel_2.unpack()))
+  run println("Layout of Color: {:?} bytes  ", &.(Layout.of<Color>().bytes))
+}

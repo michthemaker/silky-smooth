@@ -1,0 +1,31 @@
+import silk.io.logger { LogError }
+import silk.core.effect { Effect }
+import silk.core.static_text { StaticText }
+import silk.io.logger_native { StdoutLogger }
+
+/// Sends one log message at `LogLevel.Info` to the `StdoutLogger`.
+///
+/// # When to use
+///
+/// Use `println` for an ordinary progress message.
+///
+/// # Details
+///
+/// `template` is a static format template.
+/// The `Logger` provider selects the output format and destination. The message is one complete
+/// log event.
+///
+/// # Errors
+///
+/// - `LogError` if the `Logger` provider fails. This function does not buffer or retry.
+pub effect fn println<Args>(static template: string<'static>, args: &Args) -> ()
+  ! LogError {
+  // `\n` is one byte (10u8)
+  let static newline_byte: u8 = 10 // `\n`
+  static if StaticText.byteAt(template, StaticText.byteLength(template) - 1) != newline_byte {
+    let mut logger = StdoutLogger.make()
+    return run Effect.log(StaticText.concat(template, "\n"), args) |> Effect.provideMut(&mut logger)
+  }
+  let mut logger = StdoutLogger.make()
+  return run Effect.log(template, args) |> Effect.provideMut(&mut logger)
+}

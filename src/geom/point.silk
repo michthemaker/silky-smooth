@@ -1,0 +1,32 @@
+import silk.core.ownership { Copy }
+import silk.text.format { Debug, Formatter, Format }
+import silk.io.writer { WriterError, Writer }
+
+/// A 2-D point. Cheap to copy/move
+pub struct Point {
+  pub x: f32,
+  pub y: f32
+}
+
+impl Copy for Point {}
+
+impl Debug for Point {
+  effect fn debug(self: &Self, _: &mut Formatter) -> ()
+    ! WriterError
+    ? &mut Writer {
+    let mut options = Format.defaultOptions()
+    options.alternate = true
+    let mut formatter = Format.make(move options)
+    run Format.debugFields(self, "Point", &mut formatter)
+  }
+}
+
+impl Point {
+  pub fn new(x: f32, y: f32) -> Point {
+    return Point { x: x, y: y }
+  }
+
+  pub fn origin() -> Point {
+    return Point { x: 0.0, y: 0.0 }
+  }
+}
