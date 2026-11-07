@@ -3,12 +3,14 @@ import silk.text.format { Formatter, Debug, Format }
 import silk.io.writer { WriterError, Writer }
 import silk.num.u32
 import silk.num.u8
+import silk.num.usize
 import silk.core.equal { Equal }
-import silk.testing.testing { Testing, AssertionError }
 import silk.io.logger { LogError }
 import silk.text.string { String }
 import silk.core.bool
-import lib.testing { expectFail, expectToFail }
+import lib.testing { AssertionError }
+import lib.testing
+import silk.core.option { Option }
 
 /// Unsigned Normalized 8-bit integer
 ///
@@ -20,17 +22,30 @@ pub type unorm8 = u8
 
 pub tuple Pixel(u8, u8, u8, unorm8)
 
-pub struct ConversionError {
+pub struct PixelConversionError {
   message: string<'static>
 }
 
 impl Pixel {
+  /// Creates a fully opaque black pixel
+  pub fn default() -> Pixel {
+    return Pixel(0, 0, 0, 255)
+  }
+
   pub fn new(r: u8, g: u8, b: u8, a: unorm8) -> Pixel {
     return Pixel(r, g, b, a)
   }
 
   pub fn opaque(r: u8, g: u8, b: u8) -> Pixel {
     return Pixel(r, g, b, 255)
+  }
+
+  pub fn is_opaque(self: &Self) -> bool {
+    return u8.equals(self.3, 255)
+  }
+
+  pub fn is_transparent(self: &Self) -> bool {
+    return u8.equals(self.3, 0)
   }
 
   /// Uses bit-wise shift right and masking to make a `Pixel` from a `u32`
@@ -74,13 +89,70 @@ impl Pixel {
     return u32.add(u32.add(r, g), u32.add(b, a))
   }
 
-  pub effect fn from_hex(str: string) -> Pixel
-    ! ConversionError {
-    if bool.not(String.startsWith(str, "0x")) {
-      fail ConversionError { message: "Pixel hex values should start with `0x`" }
+  /// Returns the sRGB pixel of a CSS hex color, or `None` when `text` is not one.
+  ///
+  /// # Details
+  ///
+  /// Accepts three, four, six, or eight hex digits after an optional `#`, in either case: `#rgb`,
+  /// `#rgba`, `#rrggbb`, and `#rrggbbaa`. A short digit is repeated, so `#f80` is `#ff8800`.
+  pub fn from_hex(str: string) -> Option<Pixel> {
+    if bool.not(String.startsWith(str, "#")) {
+      return Option<Pixel>.none()
     }
-    return Pixel(0, 0, 0, 255)
+    let bytes = String.utf8Bytes(str)
+    let mut start: usize = 0
+    if bytes.length > 0 && bytes[0] == 35 {
+      start = 1
+    }
+
+    let count = bytes.length - start
+
+    if count != 3 && count != 4 && count != 6 && count != 8 {
+      return Option<Pixel>.none()
+    }
+
+    let mut digits: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 15]
+    if count == 6 {
+      digits[6] = 15
+    }
+    let mut i: usize = 0
+    while i < count {
+      let digit = hexDigit(bytes[start + i])
+      if digit > 15 {
+        return Option<Pixel>.none()
+      }
+      digits[i] = digit
+      i = i + 1
+    }
+
+    let mut channels: [u8; 4] = [0, 0, 0, 255]
+    let mut channel: usize = 0
+    while channel < 4 {
+      if count <= 4 {
+        if channel < count {
+          channels[channel] = digits[channel] * 17
+        }
+      } else if channel * 2 < count {
+        channels[channel] = digits[channel * 2] * 16 + digits[channel * 2 + 1]
+      }
+      channel = channel + 1
+    }
+    return Option<Pixel>.some(Pixel(channels[0], channels[1], channels[2], channels[3]))
   }
+}
+
+/// Returns the value of an ASCII hex digit, or 16 for any other byte.
+fn hexDigit(byte: u8) -> u8 {
+  if byte >= 48 && byte <= 57 {
+    return byte - 48
+  }
+  if byte >= 97 && byte <= 102 {
+    return byte - 87
+  }
+  if byte >= 65 && byte <= 70 {
+    return byte - 55
+  }
+  return 16
 }
 
 impl Copy for Pixel {}
@@ -103,8 +175,8 @@ test effect fn testPixelEquality() -> ()
   ! AssertionError<'static> {
   let pixel = Pixel(220, 20, 60, 255)
 
-  run Testing.expect(&pixel == &Pixel(220, 20, 60, 255), "not the same pixel")
-  run expectFail(&pixel == &Pixel(220, 20, 61, 255), "is the same pixel")
+  run testing.expect(&pixel == &Pixel(220, 20, 60, 255), "not the same pixel")
+  run testing.expectFail(&pixel == &Pixel(220, 20, 61, 255), "is the same pixel")
 }
 
 test effect fn testPixelConversions() -> ()
@@ -112,22 +184,25 @@ test effect fn testPixelConversions() -> ()
   let pixel = Pixel(220, 20, 60, 255)
   let pixel_value: u32 = 0xdc133cff
 
-  run expectFail(&pixel.to_u32() == &pixel_value, "is the same pixel")
+  run testing.expectFail(&pixel.to_u32() == &pixel_value, "is the same pixel")
 
   let pixel_2 = Pixel.from_u32(0xdc158b00)
+
   let r: u8 = 0xdc
   let g: u8 = 0x15
   let b: u8 = 0x8b
   let a: u8 = 0x00
-  run Testing.expect(&pixel_2.0 == &r, "is not the same pixel red channel")
-  run Testing.expect(&pixel_2.1 == &g, "is not the same pixel green channel")
-  run Testing.expect(&pixel_2.2 == &b, "is not the same pixel blue channel")
-  run Testing.expect(&pixel_2.3 == &a, "is not the same pixel alpha channel")
+  run testing.expect(&pixel_2.0 == &r, "is not the same pixel red channel")
+  run testing.expect(&pixel_2.1 == &g, "is not the same pixel green channel")
+  run testing.expect(&pixel_2.2 == &b, "is not the same pixel blue channel")
+  run testing.expect(&pixel_2.3 == &a, "is not the same pixel alpha channel")
 }
 
 test effect fn testPixelFromHex() -> ()
-  ! AssertionError<'static> {
-  let mut pixel_computation = Pixel.from_hex("0x")
+  ! AssertionError<'static> | LogError {
+  let pixel = Pixel.from_hex("#dc143c00").unwrapOr(Pixel.default())
 
-  run expectToFail(pixel_computation)
+  run testing.expect(&pixel == &Pixel.from_u32(0xdc143c00), "Not the same pixel")
+  run testing.expect(pixel.is_transparent() == true, "pixel isn't transparent")
+  run testing.expectFail(Pixel(24, 54, 200, 0).is_opaque() == true, "pixel is actually opaque")
 }

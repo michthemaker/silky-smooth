@@ -1,11 +1,72 @@
-import silk.testing.testing { AssertionError, Testing }
+//! Assertions for tests, and the filter rules that the test runner uses to select tests.
+//!
+//! # When to use
+//! Use [`testing.expect`] in a `test` function to check a condition. Use [`testing.matches`] or
+//! [`testing.matchesQualified`] in a custom test runner that must select tests with the same rules
+//! as the built-in runner.
+//!
+//! # Details
+//! An assertion failure is an ordinary typed failure, [`AssertionError`]. It needs no service and
+//! holds the message of the caller. A failed `expect` stops the test with that failure.
+//!
+//! The filters compare the file path exactly. They compare the test name as an ASCII substring and
+//! ignore ASCII case. They do not fold non-ASCII letters.
+//!
+//! # Examples
+//! ## Check a condition in a test function
+//! ```silk
+//! import lib.testing
+//!
+//! fn double(value: i32) -> i32 {
+//!   return value * 2
+//! }
+//!
+//! test effect fn doubleAddsTheValueToItself() -> ()
+//!   ! testing.AssertionError<'static> {
+//!   run testing.expect(double(21) == 42, "double(21) is 42")
+//! }
+//!
+//! pub fn main() -> i32 {
+//!   return 0
+//! }
+//! ```
+//!
+//! @category Testing
+
+import silk.testing.testing { Testing as stdTesting }
 import silk.core.effect { Effect }
 import silk.core.result { Result }
+pub import silk.testing.testing { AssertionError }
 
-/// Failing test
+/// Fails with an [`AssertionError`] that holds `message` if `condition` is `false`.
+///
+/// # Details
+///
+/// If `condition` is `true`, this function does nothing. Write `message` as the expected fact,
+/// such as `"list is empty"`, so that a failure report reads as the broken expectation.
+///
+/// # Errors
+///
+/// - [`AssertionError`] if `condition` is `false`.
+pub effect fn expect<'message>(condition: bool, message: string<'message>) -> ()
+  ! AssertionError<'message> {
+  run stdTesting.expect<'message>(condition, message)
+  return ()
+}
+
+/// Fails with an [`AssertionError`] that holds `message` if `condition` is `true`.
+///
+/// # Details
+///
+/// If `condition` is `false`, this function does nothing. Write `message` as the expected fact,
+/// such as `"list is empty"`, so that a failure report reads as the broken expectation.
+///
+/// # Errors
+///
+/// - [`AssertionError`] if `condition` is `true`.
 pub effect fn expectFail<'message>(condition: bool, message: string<'message>) -> ()
   ! AssertionError<'message> {
-  run Testing.expect<'message>(!condition, message)
+  run stdTesting.expect<'message>(!condition, message)
   return ()
 }
 
@@ -54,6 +115,49 @@ pub effect fn expectToFail<'message, A, E>(computation: once Effect<A ! E>) -> (
       true
     }
   }
-  run Testing.expect<'message>(failed, "Computation didn't fail")
+  run stdTesting.expect<'message>(failed, "Computation didn't fail")
   return ()
+}
+
+/// Returns the message of an [`AssertionError`].
+pub fn assertionMessage<'message>(error: &'message AssertionError<'message>) -> string<'message> {
+  return stdTesting.assertionMessage(error)
+}
+
+/// Returns `true` if a test with file `path` and name `name` passes both filters.
+///
+/// # Details
+///
+/// - `fileFilter` must be equal to `path`, byte for byte. An empty `fileFilter` passes each file.
+/// - `nameFilter` must occur in `name`. The comparison ignores ASCII case. An empty `nameFilter`
+///   passes each name.
+///
+/// # Gotchas
+///
+/// The name comparison folds only ASCII letters. Other letters must match exactly.
+pub fn matches(path: string, name: string, fileFilter: string, nameFilter: string) -> bool {
+  return stdTesting.matches(path, name, fileFilter, nameFilter)
+}
+
+/// Returns `true` if a test passes both filters, where the name filter applies to the qualified
+/// name `module::name`.
+///
+/// # When to use
+///
+/// Use this function in a custom runner that reports tests by qualified name, as the built-in
+/// runner does. Use [`Testing.matches`] to match the plain name only.
+///
+/// # Details
+///
+/// `fileFilter` must be equal to `path`, byte for byte. An empty `fileFilter` passes each file.
+/// `nameFilter` can occur anywhere in
+/// `module::name`, also across the `::` separator. The comparison ignores ASCII case.
+pub fn matchesQualified(
+  path: string,
+  module: string,
+  name: string,
+  fileFilter: string,
+  nameFilter: string,
+) -> bool {
+  return stdTesting.matchesQualified(path, module, name, fileFilter, nameFilter)
 }
