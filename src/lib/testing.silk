@@ -104,7 +104,7 @@ pub effect fn expectFail<'message>(condition: bool, message: string<'message>) -
 /// }
 ///```
 ///
-pub effect fn expectToFail<'message, A, E>(computation: once Effect<A ! E>) -> ()
+pub effect fn expectEffectToFail<'message, A, E>(computation: once Effect<A ! E>) -> ()
   ! AssertionError<'message> {
   let run_result = run Effect.result(move computation)
   let failed = match move run_result {
@@ -116,6 +116,36 @@ pub effect fn expectToFail<'message, A, E>(computation: once Effect<A ! E>) -> (
     }
   }
   run stdTesting.expect<'message>(failed, "Computation didn't fail")
+  return ()
+}
+
+/// Expect a Result<A, F> to be a Failure
+pub effect fn expectToFail<'message, A, F>(result: Result<A, F>) -> ()
+  ! AssertionError<'message> {
+  let failed = match move result {
+    Result<A, F>.Success { .. } => {
+      false
+    }
+    Result<A, F>.Failure { .. } => {
+      true
+    }
+  }
+  run stdTesting.expect<'message>(failed, "Result didn't fail")
+  return ()
+}
+
+/// Expect a Result<A, F> to be a Success
+pub effect fn expectToNotFail<'message, A, F>(result: Result<A, F>) -> ()
+  ! AssertionError<'message> {
+  let succeeded = match move result {
+    Result<A, F>.Success { .. } => {
+      true
+    }
+    Result<A, F>.Failure { .. } => {
+      false
+    }
+  }
+  run stdTesting.expect<'message>(succeeded, "Result failed")
   return ()
 }
 

@@ -1,11 +1,15 @@
 import silk.io.logger { LogError }
 import geom.point { Point }
 import buffer.pixels { Pixel }
+import println { println }
+import lib.default { Default }
 
 pub effect fn main() -> ()
   ! LogError {
-  drop Point.origin()
   drop Point { x: 0.1, y: -0.7 }
   let pixel = Pixel(39, 99, 29, 0)
   drop pixel
+
+  let p = Default.default<Point>()
+  run println("{:?}", &.(p))
 }

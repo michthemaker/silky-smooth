@@ -1,1 +1,78 @@
+//! Default values for types that have one obvious starting value.
+//!
+//! # When to use
+//! Implement [`Make`] for a type that has one obvious default, such as the origin for a point or
+//! transparent black for a pixel. Generic code can then create one with [`Default.default`]
+//! without knowing the type.
+//!
+//! # Details
+//! Each type states its own default in its `impl Make`. Nothing is derived from the fields of the
+//! type, so the default can mean whatever suits the type.
+//!
+//! @category Core
 
+/// A type that can create its own default value.
+///
+/// # Details
+///
+/// `make` takes no arguments, so the compiler selects the implementation from the type that the
+/// call must return. Call it through the interface name, as `Make.make()`, or through
+/// [`Default.default`].
+///
+/// # Examples
+///
+/// ```silk
+/// import lib.default { Default, Make }
+///
+/// struct Counter {
+///   pub count: i32,
+/// }
+///
+/// impl Make for Counter {
+///   fn make() -> Self {
+///     return Counter { count: 0 }
+///   }
+/// }
+///
+/// pub fn main() -> i32 {
+///   let counter = Default.default<Counter>()
+///   if counter.count != 0 {
+///     return 1
+///   }
+///   return 0
+/// }
+/// ```
+///
+/// # Gotchas
+///
+/// `make` is a plain `fn`, not an `effect fn`, so an implementation cannot use services such as
+/// the `Allocator` or report an error. A type that needs either should offer a named constructor
+/// instead.
+///
+/// Implement `Make` only when the type has one obvious default. If you would have to choose
+/// between several reasonable values, a named constructor such as `origin` or `opaque` says more.
+pub interface Make {
+  /// Returns the default value of `Self`.
+  fn make() -> Self
+}
+
+/// The owner type of [`Default.default`]. It has no fields and is never constructed.
+pub struct Default {}
+
+impl Default {
+  /// Returns the default value of `T`, as made by its [`Make`] implementation.
+  ///
+  /// # Details
+  ///
+  /// Use this in generic code that must create a `T` and knows only that `T` implements [`Make`].
+  /// Where the type is known, calling `Make.make()` directly gives the same result.
+  ///
+  /// # Gotchas
+  ///
+  /// The compiler refuses a `T` that does not implement [`Make`].
+  pub fn default<'env, T: Make + 'env>() -> T {
+    // Called through the interface name: the return type selects the implementation.
+    // `T.make()` is not accepted here.
+    return Make.make()
+  }
+}

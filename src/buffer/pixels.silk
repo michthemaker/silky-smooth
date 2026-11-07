@@ -4,6 +4,7 @@ import silk.io.writer { WriterError, Writer }
 import silk.num.u32
 import silk.num.u8
 import silk.num.usize
+import silk.num.u16
 import silk.core.equal { Equal }
 import silk.io.logger { LogError }
 import silk.text.string { String }
@@ -11,6 +12,8 @@ import silk.core.bool
 import lib.testing { AssertionError }
 import lib.testing
 import silk.core.option { Option }
+import silk.core.result { Result }
+import lib.default { Make, Default }
 
 /// Unsigned Normalized 8-bit integer
 ///
@@ -23,15 +26,10 @@ pub type unorm8 = u8
 pub tuple Pixel(u8, u8, u8, unorm8)
 
 pub struct PixelConversionError {
-  message: string<'static>
+  pub message: string<'static>
 }
 
 impl Pixel {
-  /// Creates a fully opaque black pixel
-  pub fn default() -> Pixel {
-    return Pixel(0, 0, 0, 255)
-  }
-
   pub fn new(r: u8, g: u8, b: u8, a: unorm8) -> Pixel {
     return Pixel(r, g, b, a)
   }
@@ -40,12 +38,17 @@ impl Pixel {
     return Pixel(r, g, b, 255)
   }
 
-  pub fn is_opaque(self: &Self) -> bool {
+  pub fn isOpaque(self: &Self) -> bool {
     return u8.equals(self.3, 255)
   }
 
-  pub fn is_transparent(self: &Self) -> bool {
+  pub fn isTransparent(self: &Self) -> bool {
     return u8.equals(self.3, 0)
+  }
+
+  /// Create a PremultipliedPixel from a Pixel
+  pub fn toPremultiplied(self: &Self) -> PremultipliedPixel {
+    return PremultipliedPixel.fromPixel(self)
   }
 
   /// Uses bit-wise shift right and masking to make a `Pixel` from a `u32`
@@ -64,7 +67,7 @@ impl Pixel {
   /// let pixel_2 = Pixel.from_u32(0xdc143cff)
   ///
   /// ```
-  pub fn from_u32(v: u32) -> Pixel {
+  pub fn fromU32(v: u32) -> Pixel {
     let r: u8 = u32.shiftRight(v, 24)
       |> u32.bitAnd(0xFF)
       |> u32.toU8()
@@ -81,7 +84,7 @@ impl Pixel {
     return Pixel(r, g, b, a)
   }
 
-  pub fn to_u32(self: &Self) -> u32 {
+  pub fn toU32(self: &Self) -> u32 {
     let r = u8.toU32(self.0) |> u32.shiftLeft(24)
     let g = u8.toU32(self.1) |> u32.shiftLeft(16)
     let b = u8.toU32(self.2) |> u32.shiftLeft(8)
@@ -95,7 +98,7 @@ impl Pixel {
   ///
   /// Accepts three, four, six, or eight hex digits after an optional `#`, in either case: `#rgb`,
   /// `#rgba`, `#rrggbb`, and `#rrggbbaa`. A short digit is repeated, so `#f80` is `#ff8800`.
-  pub fn from_hex(str: string) -> Option<Pixel> {
+  pub fn fromHex(str: string) -> Option<Pixel> {
     if bool.not(String.startsWith(str, "#")) {
       return Option<Pixel>.none()
     }
@@ -141,18 +144,11 @@ impl Pixel {
   }
 }
 
-/// Returns the value of an ASCII hex digit, or 16 for any other byte.
-fn hexDigit(byte: u8) -> u8 {
-  if byte >= 48 && byte <= 57 {
-    return byte - 48
+impl Make for Pixel {
+  /// Creates a fully opaque black pixel
+  pub fn make() -> Pixel {
+    return Pixel(0, 0, 0, 255)
   }
-  if byte >= 97 && byte <= 102 {
-    return byte - 87
-  }
-  if byte >= 65 && byte <= 70 {
-    return byte - 55
-  }
-  return 16
 }
 
 impl Copy for Pixel {}
@@ -171,6 +167,85 @@ impl Equal for Pixel {
   }
 }
 
+pub tuple PremultipliedPixel(u8, u8, u8, unorm8)
+
+impl PremultipliedPixel {
+  /// Create a PremultipliedPixel from pre-multiplied values
+  /// # Details
+  /// Returns a Failure result if any of the r,g,b channels exceeds the alpha channel
+  pub fn fromPremultiplied(r: u8, g: u8, b: u8, a: unorm8) -> Result<
+    PremultipliedPixel,
+    PixelConversionError
+  > {
+    if r > a || g > a || b > a {
+      return move Result<PremultipliedPixel, PixelConversionError>.failResult(
+        PixelConversionError { message: "Color channels exceed alpha channel" },
+      )
+    }
+    return move Result<PremultipliedPixel, PixelConversionError>.succeed(
+      PremultipliedPixel(r, g, b, a),
+    )
+  }
+
+  pub fn fromPixel(pixel: &Pixel) -> PremultipliedPixel {
+    return premultiplyFromRaw(pixel.0, pixel.1, pixel.2, pixel.3)
+  }
+}
+
+impl Make for PremultipliedPixel {
+  pub fn make() -> PremultipliedPixel {
+    return PremultipliedPixel(0, 0, 0, 255)
+  }
+}
+
+impl Copy for PremultipliedPixel {}
+
+impl Debug for PremultipliedPixel {
+  effect fn debug(self: &PremultipliedPixel, formatter: &mut Formatter) -> ()
+    ! WriterError
+    ? &mut Writer {
+    run Format.debugFields(self, "PremultipliedPixel", &mut formatter)
+  }
+}
+
+impl Equal for PremultipliedPixel {
+  fn equals(left: &Self, right: &PremultipliedPixel) -> bool {
+    return left.0 == right.0 && left.1 == right.1 && left.2 == right.2 && left.3 == right.3
+  }
+}
+
+/// Returns the value of an ASCII hex digit, or 16 for any other byte.
+fn hexDigit(byte: u8) -> u8 {
+  if byte >= 48 && byte <= 57 {
+    return byte - 48
+  }
+  if byte >= 97 && byte <= 102 {
+    return byte - 87
+  }
+  if byte >= 65 && byte <= 70 {
+    return byte - 55
+  }
+  return 16
+}
+
+fn premultiplyFromRaw(r: u8, g: u8, b: u8, a: unorm8) -> PremultipliedPixel {
+  let out_r = u8.toU16(r) * u8.toU16(a)
+    |> divideBy255Rounded()
+    |> u16.toU8()
+  let out_g = u8.toU16(g) * u8.toU16(a)
+    |> divideBy255Rounded()
+    |> u16.toU8()
+  let out_b = u8.toU16(b) * u8.toU16(a)
+    |> divideBy255Rounded()
+    |> u16.toU8()
+
+  return PremultipliedPixel(out_r, out_g, out_b, a)
+}
+
+fn divideBy255Rounded(v: u16) -> u16 {
+  return (v + 127) / 255
+}
+
 test effect fn testPixelEquality() -> ()
   ! AssertionError<'static> {
   let pixel = Pixel(220, 20, 60, 255)
@@ -184,9 +259,9 @@ test effect fn testPixelConversions() -> ()
   let pixel = Pixel(220, 20, 60, 255)
   let pixel_value: u32 = 0xdc133cff
 
-  run testing.expectFail(&pixel.to_u32() == &pixel_value, "is the same pixel")
+  run testing.expectFail(&pixel.toU32() == &pixel_value, "is the same pixel")
 
-  let pixel_2 = Pixel.from_u32(0xdc158b00)
+  let pixel_2 = Pixel.fromU32(0xdc158b00)
 
   let r: u8 = 0xdc
   let g: u8 = 0x15
@@ -200,9 +275,28 @@ test effect fn testPixelConversions() -> ()
 
 test effect fn testPixelFromHex() -> ()
   ! AssertionError<'static> | LogError {
-  let pixel = Pixel.from_hex("#dc143c00").unwrapOr(Pixel.default())
+  let pixel = Pixel.fromHex("#dc143c00").unwrapOr(Default.default<Pixel>())
 
-  run testing.expect(&pixel == &Pixel.from_u32(0xdc143c00), "Not the same pixel")
-  run testing.expect(pixel.is_transparent() == true, "pixel isn't transparent")
-  run testing.expectFail(Pixel(24, 54, 200, 0).is_opaque() == true, "pixel is actually opaque")
+  run testing.expect(&pixel == &Pixel.fromU32(0xdc143c00), "Not the same pixel")
+  run testing.expect(pixel.isTransparent() == true, "pixel isn't transparent")
+  run testing.expectFail(Pixel(24, 54, 200, 0).isOpaque() == true, "pixel is actually opaque")
+}
+
+test effect fn testPremultipliedPixel() -> ()
+  ! AssertionError<'static> | LogError {
+  run testing.expectToFail(PremultipliedPixel.fromPremultiplied(24, 102, 29, 100))
+  let premuled = PremultipliedPixel.fromPixel(&Pixel(24, 99, 29, 255))
+  run testing.expect(
+    &premuled == &Pixel(24, 99, 29, 255).toPremultiplied(),
+    "Isn't the same premulitiplied pixel",
+  )
+
+  let premuled_2 = PremultipliedPixel.fromPixel(&Pixel(10, 234, 29, 245))
+  let pixel_1 = Pixel(24, 99, 29, 255)
+  drop pixel_1
+
+  run testing.expect(premuled_2.0 == 10, "Premultiplied red channel isn't the same")
+  run testing.expect(premuled_2.1 == 225, "Premultiplied green channel isn't the same")
+  run testing.expect(premuled_2.2 == 28, "Premultiplied blue channel isn't the same")
+  run testing.expect(premuled_2.3 == 245, "Premultiplied alpha channel isn't the same")
 }

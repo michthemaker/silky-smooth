@@ -1,6 +1,7 @@
 import silk.core.ownership { Copy }
 import silk.text.format { Debug, Formatter, Format }
 import silk.io.writer { WriterError, Writer }
+import lib.default { Make }
 
 /// A 2-D point. Cheap to copy/move
 pub struct Point {
@@ -25,8 +26,10 @@ impl Point {
   pub fn new(x: f32, y: f32) -> Point {
     return Point { x: x, y: y }
   }
+}
 
-  pub fn origin() -> Point {
+impl Make for Point {
+  pub fn make() -> Self {
     return Point { x: 0.0, y: 0.0 }
   }
 }
