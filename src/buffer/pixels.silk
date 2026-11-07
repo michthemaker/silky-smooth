@@ -1,6 +1,14 @@
 import silk.core.ownership { Copy }
 import silk.text.format { Formatter, Debug, Format }
 import silk.io.writer { WriterError, Writer }
+import silk.num.u32
+import silk.num.u8
+import silk.core.equal { Equal }
+import silk.testing.testing { Testing, AssertionError }
+import silk.io.logger { LogError }
+import silk.text.string { String }
+import silk.core.bool
+import lib.testing { expectFail, expectToFail }
 
 /// Unsigned Normalized 8-bit integer
 ///
@@ -12,6 +20,69 @@ pub type unorm8 = u8
 
 pub tuple Pixel(u8, u8, u8, unorm8)
 
+pub struct ConversionError {
+  message: string<'static>
+}
+
+impl Pixel {
+  pub fn new(r: u8, g: u8, b: u8, a: unorm8) -> Pixel {
+    return Pixel(r, g, b, a)
+  }
+
+  pub fn opaque(r: u8, g: u8, b: u8) -> Pixel {
+    return Pixel(r, g, b, 255)
+  }
+
+  /// Uses bit-wise shift right and masking to make a `Pixel` from a `u32`
+  ///
+  /// # Details
+  /// Parameter `v` must follow the format `0xRRGGBBAA`.
+  /// It is preferred to use upper-hexadecimal format.
+  ///
+  /// # Note
+  /// Suffixed `00` means fully transparent alpha channel (e.g 0xffbbad00).
+  /// Suffixed `ff` means fully opaque alpha channel (e.g 0xdc143cff)
+  ///
+  /// # Examples
+  /// ```
+  /// let pixel = Pixel.from_u32(0xffbbad00)
+  /// let pixel_2 = Pixel.from_u32(0xdc143cff)
+  ///
+  /// ```
+  pub fn from_u32(v: u32) -> Pixel {
+    let r: u8 = u32.shiftRight(v, 24)
+      |> u32.bitAnd(0xFF)
+      |> u32.toU8()
+    let g: u8 = u32.shiftRight(v, 16)
+      |> u32.bitAnd(0xFF)
+      |> u32.toU8()
+    let b: u8 = u32.shiftRight(v, 8)
+      |> u32.bitAnd(0xFF)
+      |> u32.toU8()
+    let a: unorm8 = u32.shiftRight(v, 0)
+      |> u32.bitAnd(0xFF)
+      |> u32.toU8()
+
+    return Pixel(r, g, b, a)
+  }
+
+  pub fn to_u32(self: &Self) -> u32 {
+    let r = u8.toU32(self.0) |> u32.shiftLeft(24)
+    let g = u8.toU32(self.1) |> u32.shiftLeft(16)
+    let b = u8.toU32(self.2) |> u32.shiftLeft(8)
+    let a = u8.toU32(self.3) |> u32.shiftLeft(0)
+    return u32.add(u32.add(r, g), u32.add(b, a))
+  }
+
+  pub effect fn from_hex(str: string) -> Pixel
+    ! ConversionError {
+    if bool.not(String.startsWith(str, "0x")) {
+      fail ConversionError { message: "Pixel hex values should start with `0x`" }
+    }
+    return Pixel(0, 0, 0, 255)
+  }
+}
+
 impl Copy for Pixel {}
 
 impl Debug for Pixel {
@@ -20,4 +91,43 @@ impl Debug for Pixel {
     ? &mut Writer {
     run Format.debugFields(self, "Pixel", &mut formatter)
   }
+}
+
+impl Equal for Pixel {
+  fn equals(left: &Self, right: &Pixel) -> bool {
+    return left.0 == right.0 && left.1 == right.1 && left.2 == right.2 && left.3 == right.3
+  }
+}
+
+test effect fn testPixelEquality() -> ()
+  ! AssertionError<'static> {
+  let pixel = Pixel(220, 20, 60, 255)
+
+  run Testing.expect(&pixel == &Pixel(220, 20, 60, 255), "not the same pixel")
+  run expectFail(&pixel == &Pixel(220, 20, 61, 255), "is the same pixel")
+}
+
+test effect fn testPixelConversions() -> ()
+  ! AssertionError<'static> | LogError {
+  let pixel = Pixel(220, 20, 60, 255)
+  let pixel_value: u32 = 0xdc133cff
+
+  run expectFail(&pixel.to_u32() == &pixel_value, "is the same pixel")
+
+  let pixel_2 = Pixel.from_u32(0xdc158b00)
+  let r: u8 = 0xdc
+  let g: u8 = 0x15
+  let b: u8 = 0x8b
+  let a: u8 = 0x00
+  run Testing.expect(&pixel_2.0 == &r, "is not the same pixel red channel")
+  run Testing.expect(&pixel_2.1 == &g, "is not the same pixel green channel")
+  run Testing.expect(&pixel_2.2 == &b, "is not the same pixel blue channel")
+  run Testing.expect(&pixel_2.3 == &a, "is not the same pixel alpha channel")
+}
+
+test effect fn testPixelFromHex() -> ()
+  ! AssertionError<'static> {
+  let mut pixel_computation = Pixel.from_hex("0x")
+
+  run expectToFail(pixel_computation)
 }

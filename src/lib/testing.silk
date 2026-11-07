@@ -1,0 +1,59 @@
+import silk.testing.testing { AssertionError, Testing }
+import silk.core.effect { Effect }
+import silk.core.result { Result }
+
+/// Failing test
+pub effect fn expectFail<'message>(condition: bool, message: string<'message>) -> ()
+  ! AssertionError<'message> {
+  run Testing.expect<'message>(!condition, message)
+  return ()
+}
+
+/// Expect a computation to fail
+///
+/// # Examples
+///
+///```
+/// // computation with an error but no service requirement
+/// struct SumError {}
+///
+/// pub effect fn sum(a: u8, b: u8) -> u8 ! SumError {
+///  if u8.greaterThan(a, u8.MAX) { fail SumError {} }
+///  return u8.add(a, b)
+/// }
+///test effect fn testSum() -> () ! AssertionError<'static> {
+///  let computation = sum(5, 10)
+///  run expectToFail(computation)
+/// }
+///```
+///
+///```
+/// // computation with an error and a service requirement
+/// struct SomeError {}
+///
+///pub effect fn doSomething() -> () ! SomeError ? &Clock {
+///  if true { fail SomeError {} }
+///  return ()
+/// }
+///
+///test effect fn testDoSomething() -> () ! AssertionError<'static> {
+///  let clock = MonotonicClock.make() // or let mut clock = MonotonicClock.make() mutable variant
+///  let computation = doSomething(5, 10) |> Effect.provide(&clock) // or Effect.provideMut(&mut clock)
+///  run expectToFail(computation)
+/// }
+///```
+///
+pub effect fn expectToFail<'message, A, E>(computation: once Effect<A ! E>) -> ()
+  ! AssertionError<'message> {
+  let run_result = run Effect.result(move computation)
+  let failed = match move run_result {
+    Result<A, E>.Success { .. } => {
+      false
+    }
+    Result<A, E>.Failure { .. } => {
+      true
+    }
+  }
+  run Testing.expect<'message>(failed, "Computation didn't fail")
+  return ()
+}
