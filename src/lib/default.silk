@@ -70,7 +70,7 @@ impl Default {
   /// # Gotchas
   ///
   /// The compiler refuses a `T` that does not implement [`Make`].
-  pub fn default<'env, T: Make + 'env>() -> T {
+  pub fn default<T: Make>() -> T {
     // Called through the interface name: the return type selects the implementation.
     // `T.make()` is not accepted here.
     return Make.make()
