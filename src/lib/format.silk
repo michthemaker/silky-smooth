@@ -1,0 +1,36 @@
+import silk.io.writer { WriterError }
+import lib.capture_writer { CaptureWriter }
+import lib.default { Default }
+import silk.core.effect { Effect }
+import silk.text.format { Format }
+import silk.collections.list { List }
+import lib.testing { AssertionError }
+import lib.testing
+import silk.text.string { String }
+
+/// Formats to bytes using `Format.format` and CaptureWriter
+pub effect fn formatToBytes<Args>(static template: string<'static>, args: &Args) -> List<u8>
+  ! WriterError {
+  let mut captureWriter = Default.default<CaptureWriter>()
+  run Format.format(template, &args) |> Effect.provideMut(&mut captureWriter)
+  let bytes = captureWriter.toBytes()
+  return move bytes
+}
+
+/// Formats to string using `Format.format` and CaptureWriter
+pub effect fn format<'text, Args>(static template: string<'static>, args: &Args) -> string<'text>
+  ! WriterError {
+  let formatted_bytes_list = run formatToBytes(template, args)
+  let formatted_bytes = List.asSlice(&formatted_bytes_list)
+  return unsafe String.fromUtf8Unchecked(formatted_bytes)
+}
+
+test effect fn testFormat() -> ()
+  ! AssertionError<'static> | WriterError {
+  let formatted_bytes_list = run formatToBytes("check", &.())
+  let formatted_bytes = List.asSlice(&formatted_bytes_list)
+  run testing.expect(formatted_bytes[0] == b"check"[0], "failed to format")
+
+  let formatted = run format("check", &.())
+  run testing.expect(formatted == "check", "failed to format")
+}

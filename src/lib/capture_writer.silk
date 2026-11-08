@@ -1,0 +1,67 @@
+import silk.io.writer { Writer, WriterError }
+import silk.collections.list { List }
+import lib.default { Make }
+import silk.mem.allocator { Allocator }
+import silk.core.effect { Effect }
+
+pub struct CaptureWriter {
+  bytes: List<u8>,
+  length: usize,
+}
+
+impl CaptureWriter {
+  /// Check what the writer holds
+  pub fn holds(self: &Self, expected: &[u8]) -> bool {
+    return writerHolds(&self, &expected)
+  }
+
+  /// Consumes the writer and moves the bytes out as a shared mutable byte slice
+  pub fn toBytes(self: Self) -> List<u8> {
+    let mut bytes = move self.bytes
+    drop self
+    return move bytes
+  }
+}
+
+impl Make for CaptureWriter {
+  fn make() -> Self {
+    return CaptureWriter { bytes: List<u8>.make(), length: 0 }
+  }
+}
+
+impl Writer for CaptureWriter {
+  effect fn writeAll(self: &mut Self, value: &[u8]) -> ()
+    ! WriterError
+    ? &mut Writer {
+    let mut index: usize = 0
+    let mut allocator = Allocator.systemAllocatorProvider()
+    while index < value.length {
+      drop run Effect.result(self.bytes.insert(self.length, value[index]))
+        |> Effect.provideMut(&mut allocator)
+      self.length = self.length + 1
+      index = index + 1
+    }
+    return ()
+  }
+
+  effect fn flush(self: &mut Self) -> ()
+    ! WriterError
+    ? &mut Writer {
+    return ()
+  }
+}
+
+fn writerHolds(writer: &CaptureWriter, expected: &[u8]) -> bool {
+  if writer.length != expected.length {
+    return false
+  }
+  let mut index: usize = 0
+  while index < expected.length {
+    let bytes = &writer.bytes
+    if bytes.get(index) != expected[index] {
+      return false
+    }
+    index = index + 1
+  }
+  return true
+}

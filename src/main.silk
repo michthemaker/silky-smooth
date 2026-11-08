@@ -1,3 +1,7 @@
+import buffer.pixel { Pixel }
+import lib.default { Default }
+import buffer.frame_buffer { writeP3 }
+
 pub effect fn main() -> i32 {
   return 0
 }
