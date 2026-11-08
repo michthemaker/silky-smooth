@@ -1,4 +1,4 @@
 [package]
-name = "silky-smooth"
+name = "silky_smooth"
 version = "0.1.0"
 silk-version = "0.1.0-dev.56+f7d93cff9716"
