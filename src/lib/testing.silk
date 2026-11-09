@@ -70,40 +70,28 @@ pub effect fn expectFail<'message>(condition: bool, message: string<'message>) -
   return ()
 }
 
-/// Expect a computation to fail
+/// Fails the test unless `computation` fails.
+///
+/// # Details
+///
+/// The computation must have no unprovided services. Give it any it needs first, with
+/// `Effect.provide` or `Effect.provideMut`. To also check which failure it ends with, use
+/// [`expectEffectToFailWith`].
 ///
 /// # Examples
 ///
-///```
-/// // computation with an error but no service requirement
-/// struct SumError {}
+/// ```silk
+/// struct DivideError {}
 ///
-/// pub effect fn sum(a: u8, b: u8) -> u8 ! SumError {
-///  if u8.greaterThan(a, u8.MAX) { fail SumError {} }
-///  return u8.add(a, b)
-/// }
-///test effect fn testSum() -> () ! AssertionError<'static> {
-///  let mut computation = sum(5, 10)
-///  run expectToFail(computation)
-/// }
-///```
-///
-///```
-/// // computation with an error and a service requirement
-/// struct SomeError {}
-///
-///pub effect fn doSomething() -> () ! SomeError ? &Clock {
-///  if true { fail SomeError {} }
-///  return ()
+/// effect fn divide(a: u8, b: u8) -> u8 ! DivideError {
+///   if b == 0 { fail DivideError {} }
+///   return a / b
 /// }
 ///
-///test effect fn testDoSomething() -> () ! AssertionError<'static> {
-///  let clock = MonotonicClock.make() // or let mut clock = MonotonicClock.make() mutable variant
-///  let mut computation = doSomething(5, 10) |> Effect.provide(&clock) // or Effect.provideMut(&mut clock)
-///  run expectToFail(computation)
+/// test effect fn testDivideByZero() -> () ! AssertionError<'static> {
+///   run expectEffectToFail(divide(5, 0))
 /// }
-///```
-///
+/// ```
 pub effect fn expectEffectToFail<'message, A, E>(computation: once Effect<A ! E>) -> ()
   ! AssertionError<'message> {
   let run_result = run Effect.result(move computation)
@@ -119,7 +107,72 @@ pub effect fn expectEffectToFail<'message, A, E>(computation: once Effect<A ! E>
   return ()
 }
 
-/// Expect a Result<A, F> to be a Failure
+struct Caught {}
+
+/// Fails the test unless `computation` fails with the failure type `S`.
+///
+/// # Details
+///
+/// Write `S` as the first type argument, as in `expectEffectToFailWith<DivideError>(computation)`.
+/// `S` must be one of the failure types of `computation`, so a type it cannot fail with is a
+/// compile error. Any other failure fails the test. As with [`expectEffectToFail`], the
+/// computation must have no unprovided services.
+///
+/// # Examples
+///
+/// ```silk
+/// test effect fn testDivideByZeroError() -> () ! AssertionError<'static> {
+///   run expectEffectToFailWith<DivideError>(divide(5, 0))
+/// }
+/// ```
+///
+/// # Gotchas
+///
+/// A trap is not a typed failure, so this cannot expect one.
+pub effect fn expectEffectToFailWith<'message, S, A, E>(computation: once Effect<A ! E>) -> ()
+  ! AssertionError<'message> where S in E {
+  let narrowed = Effect.catch<S>(
+    move computation,
+    effect fn(error: S) -> Caught {
+      return Caught {}
+    },
+  )
+  let outcome = run Effect.result(move narrowed)
+  match move outcome {
+    Result<A | Caught, Without<E, S>>.Failure { .. } => {
+      run stdTesting.expect<'message>(false, "Computation failed with a different error")
+    }
+    Result<A | Caught, Without<E, S>>.Success { value } => {
+      match move value {
+        Caught {} => {
+          run stdTesting.expect<'message>(true, "")
+        }
+        _ => {
+          run stdTesting.expect<'message>(false, "Computation didn't fail")
+        }
+      }
+    }
+  }
+  return ()
+}
+
+/// Fails the test unless `result` is a failure.
+///
+/// # Details
+///
+/// This checks a value you already have. To check an effect that has not run yet, use
+/// [`expectEffectToFail`].
+///
+/// # Examples
+///
+/// ```silk
+/// struct DivideError {}
+///
+/// test effect fn testFailure() -> () ! AssertionError<'static> {
+///   let result = Result<u8, DivideError>.failResult(DivideError {})
+///   run expectToFail(result)
+/// }
+/// ```
 pub effect fn expectToFail<'message, A, F>(result: Result<A, F>) -> ()
   ! AssertionError<'message> {
   let failed = match move result {
@@ -134,7 +187,23 @@ pub effect fn expectToFail<'message, A, F>(result: Result<A, F>) -> ()
   return ()
 }
 
-/// Expect a Result<A, F> to be a Success
+/// Fails the test unless `result` is a success.
+///
+/// # Details
+///
+/// This checks a value you already have. To check an effect that has not run yet, use
+/// [`expectEffectToNotFail`].
+///
+/// # Examples
+///
+/// ```silk
+/// struct DivideError {}
+///
+/// test effect fn testSuccess() -> () ! AssertionError<'static> {
+///   let result = Result<u8, DivideError>.succeed(2)
+///   run expectToNotFail(result)
+/// }
+/// ```
 pub effect fn expectToNotFail<'message, A, F>(result: Result<A, F>) -> ()
   ! AssertionError<'message> {
   let succeeded = match move result {

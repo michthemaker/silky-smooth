@@ -77,8 +77,9 @@ test effect fn testWriteP3() -> ()
     ],
   )
     |> Effect.provideMut(&mut captureWriter)
-  let mut captureWriter_2 = Default.default<CaptureWriter>()
+  run println("{}", &.(unsafe String.fromUtf8Unchecked(captureWriter.toBytes().asSlice())))
 
+  let mut captureWriter_2 = Default.default<CaptureWriter>()
   let mut computation = writeP3(
     2,
     3,
@@ -90,9 +91,6 @@ test effect fn testWriteP3() -> ()
       Pixel(255, 255, 255, 255),
     ],
   )
-    |> Effect.provideMut(&mut captureWriter)
-  run println("{}", &.(unsafe String.fromUtf8Unchecked(captureWriter_2.toBytes().asSlice())))
-  run testing.expectEffectToFail(computation)
-  // run testing.expect(captureWriter.holds(b"P3\n"), "P3 ppm wasn't written")
-  // run testing.expectFail(captureWriter.holds(b"p3"), "P3 ppm wasn't written")
+    |> Effect.provideMut(&mut captureWriter_2)
+  run testing.expectEffectToFailWith<PPMWriteError>(computation)
 }
