@@ -13,6 +13,7 @@ import silk.text.string { String }
 import silk.mem.allocator { Allocator }
 import silk.num.u32
 import silk.num.usize
+import lib.iter { range, Step }
 
 pub const hold: i32 = 0
 
@@ -20,7 +21,7 @@ pub struct PPMWriteError {
   pub message: string<'static>
 }
 
-pub effect fn writeP3(width: u32, height: u32, max_channel: u8, pixel_grid: [Pixel; 4]) -> ()
+pub effect fn writeP3(width: u32, height: u32, pixel_grid: &[Pixel]) -> ()
   ! WriterError | PPMWriteError | LogError
   ? &mut Writer {
   if u32.checkedSubtract(usize.toU32(pixel_grid.length), width * height).isNone() {
@@ -34,7 +35,7 @@ pub effect fn writeP3(width: u32, height: u32, max_channel: u8, pixel_grid: [Pix
       String.make(),
     ),
     run format("{0} {1}\n", &.(width, height)),
-    run format("{0}\n", &.(max_channel)),
+    run format("{0}\n", &.(255)),
   ]
   let mut index: usize = 0
   while index < headers.length {
@@ -42,23 +43,24 @@ pub effect fn writeP3(width: u32, height: u32, max_channel: u8, pixel_grid: [Pix
     run Format.write(&mut formatter, header.ownedUtf8Bytes())
     index = index + 1
   }
+  let w = u32.toUsize(width)
+  let h = u32.toUsize(height)
 
-  let pixels = move pixel_grid
-  let mut column_index: u32 = 0
-  let mut row_passed: u32 = 0
-  while column_index < height {
-    let mut row_index: u32 = 0
-    while row_index < width {
-      let pixel = &pixels[u32.toUsize(row_passed)]
+  let mut rows = range(0, h)
+  while let Step.Index { i: y } = rows.next() {
+    let mut cols = range(0, w)
+    while let Step.Index { i: x } = cols.next() {
+      // 0 * 2 = 0 + 0 = 0
+      // 0 * 2 = 0 + 1 = 1
+      // 1 * 2 = 2 + 0 = 2
+      // 1 * 2 = 2 + 1 = 3
+      let pixel = pixel_grid[y * w + x]
       run Format.format("{0} {1} {2}", &.(pixel.0, pixel.1, pixel.2))
-      if (row_index + 1) != width {
+      if (x + 1) != w {
         run Format.writeText(&mut formatter, "  ")
       }
-      row_index = row_index + 1
-      row_passed = row_passed + 1
     }
     run Format.writeText(&mut formatter, "\n")
-    column_index = column_index + 1
   }
 }
 
@@ -68,8 +70,7 @@ test effect fn testWriteP3() -> ()
   run writeP3(
     2,
     2,
-    255,
-    [
+    &[
       Pixel(255, 0, 0, 255),
       Pixel(0, 255, 0, 255),
       Pixel(0, 0, 255, 255),
@@ -83,8 +84,7 @@ test effect fn testWriteP3() -> ()
   let mut computation = writeP3(
     2,
     3,
-    255,
-    [
+    &[
       Pixel(255, 0, 0, 255),
       Pixel(0, 255, 0, 255),
       Pixel(0, 0, 255, 255),
