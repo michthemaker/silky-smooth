@@ -83,7 +83,7 @@ pub effect fn expectFail<'message>(condition: bool, message: string<'message>) -
 ///  return u8.add(a, b)
 /// }
 ///test effect fn testSum() -> () ! AssertionError<'static> {
-///  let computation = sum(5, 10)
+///  let mut computation = sum(5, 10)
 ///  run expectToFail(computation)
 /// }
 ///```
@@ -99,7 +99,7 @@ pub effect fn expectFail<'message>(condition: bool, message: string<'message>) -
 ///
 ///test effect fn testDoSomething() -> () ! AssertionError<'static> {
 ///  let clock = MonotonicClock.make() // or let mut clock = MonotonicClock.make() mutable variant
-///  let computation = doSomething(5, 10) |> Effect.provide(&clock) // or Effect.provideMut(&mut clock)
+///  let mut computation = doSomething(5, 10) |> Effect.provide(&clock) // or Effect.provideMut(&mut clock)
 ///  run expectToFail(computation)
 /// }
 ///```

@@ -1,14 +1,15 @@
 import buffer.frame_buffer { hold }
+import lib.iter { range, Step }
+import lib.println { println }
+import silk.io.logger { LogError }
 
-union Shape {
-  Circle { radius: i32 },
-  Rect { width: i32, height: i32 },
-  Empty,
-}
+pub effect fn main() -> i32
+  ! LogError {
+  let mut iter = range(0, 5)
+  while let Step.Index { i } = move iter.next() {
+    run println("{}", &.(i))
+  }
 
-pub effect fn main() -> i32 {
-  let empty_shape = Shape.Empty
-  if let Shape.Empty = move empty_shape {}
   drop hold
   return 0
 }

@@ -1,0 +1,33 @@
+/// One step of a range: either the next index or the end.
+pub union Step {
+  Index { pub i: usize },
+  Done,
+}
+
+pub struct Range {
+  cursor: usize,
+  end: usize
+}
+
+impl Range {
+  pub fn next(self: &mut Self) -> Step {
+    if self.cursor >= self.end {
+      return Step.Done
+    }
+    let i = self.cursor
+    self.cursor = self.cursor + 1
+    return Step.Index { i: i }
+  }
+}
+
+/// Builds a range for lazy iteration in loops
+/// # Example
+/// ```silk
+/// let mut iter = range(0, 5)
+/// while let Step.Index { i } = move iter.next() {
+///  run println("{}", &.(i))
+/// }
+/// ```
+pub fn range(start: usize, end: usize) -> Range {
+  return Range { cursor: start, end: end }
+}
