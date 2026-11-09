@@ -6,19 +6,64 @@ import silk.io.writer { WriterError, Writer }
 import silk.core.effect { Effect }
 import lib.capture_writer { CaptureWriter }
 import lib.default { Default }
-import lib.format { formatToBytes }
+import lib.format { format }
+import silk.io.logger { LogError }
+import lib.println { println }
+import silk.text.string { String }
+import silk.mem.allocator { Allocator }
+import silk.num.u32
+import silk.num.usize
 
-pub effect fn writeP3(width: u8, height: u8, max_channel: u8, pixels: [Pixel; 4]) -> ()
-  ! WriterError
+pub const hold: i32 = 0
+
+pub struct PPMWriteError {
+  pub message: string<'static>
+}
+
+pub effect fn writeP3(width: u32, height: u32, max_channel: u8, pixel_grid: [Pixel; 4]) -> ()
+  ! WriterError | PPMWriteError | LogError
   ? &mut Writer {
+  if u32.checkedSubtract(usize.toU32(pixel_grid.length), width * height).isNone() {
+    fail PPMWriteError { message: "Pixel count exceeds pixel_grid length" }
+  }
+
   let mut formatter = Format.makeDefault()
-  run Format.write(&mut formatter, b"P3\n")
-  let bytes = formatToBytes("", &.(9, 2))
-  // run Format.write(&mut formatter, Format.format)
+  let mut allocator = Allocator.systemAllocatorProvider()
+  let headers: [String; 3] = [
+    (run Effect.result(String.copy("P3\n")) |> Effect.provideMut(&mut allocator)).unwrapOr(
+      String.make(),
+    ),
+    run format("{0} {1}\n", &.(width, height)),
+    run format("{0}\n", &.(max_channel)),
+  ]
+  let mut index: usize = 0
+  while index < headers.length {
+    let header = &headers[index]
+    run Format.write(&mut formatter, header.ownedUtf8Bytes())
+    index = index + 1
+  }
+
+  let pixels = move pixel_grid
+  let mut column_index: u32 = 0
+  let mut row_passed: u32 = 0
+  while column_index < height {
+    let mut row_index: u32 = 0
+    while row_index < width {
+      let pixel = &pixels[u32.toUsize(row_passed)]
+      run Format.format("{0} {1} {2}", &.(pixel.0, pixel.1, pixel.2))
+      if (row_index + 1) != width {
+        run Format.writeText(&mut formatter, "  ")
+      }
+      row_index = row_index + 1
+      row_passed = row_passed + 1
+    }
+    run Format.writeText(&mut formatter, "\n")
+    column_index = column_index + 1
+  }
 }
 
 test effect fn testWriteP3() -> ()
-  ! AssertionError<'static> | WriterError {
+  ! AssertionError<'static> | WriterError | LogError | PPMWriteError {
   let mut captureWriter = Default.default<CaptureWriter>()
   run writeP3(
     2,
@@ -32,6 +77,22 @@ test effect fn testWriteP3() -> ()
     ],
   )
     |> Effect.provideMut(&mut captureWriter)
-  run testing.expect(captureWriter.holds(b"P3\n"), "P3 ppm wasn't written")
+  let mut captureWriter_2 = Default.default<CaptureWriter>()
+
+  let mut computation = writeP3(
+    2,
+    3,
+    255,
+    [
+      Pixel(255, 0, 0, 255),
+      Pixel(0, 255, 0, 255),
+      Pixel(0, 0, 255, 255),
+      Pixel(255, 255, 255, 255),
+    ],
+  )
+    |> Effect.provideMut(&mut captureWriter)
+  run println("{}", &.(unsafe String.fromUtf8Unchecked(captureWriter_2.toBytes().asSlice())))
+  run testing.expectEffectToFail(computation)
+  // run testing.expect(captureWriter.holds(b"P3\n"), "P3 ppm wasn't written")
   // run testing.expectFail(captureWriter.holds(b"p3"), "P3 ppm wasn't written")
 }

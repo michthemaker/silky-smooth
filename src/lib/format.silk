@@ -7,22 +7,28 @@ import silk.collections.list { List }
 import lib.testing { AssertionError }
 import lib.testing
 import silk.text.string { String }
+import silk.collections.bytes { Bytes }
+import silk.mem.allocator { Allocator }
 
-/// Formats to bytes using `Format.format` and CaptureWriter
-pub effect fn formatToBytes<Args>(static template: string<'static>, args: &Args) -> List<u8>
+/// Formats `template` using `Format.format`, replacing placeholders and returning an owned List<u8> of the formatted template
+effect fn formatToBytes<Args>(static template: string<'static>, args: &Args) -> List<u8>
   ! WriterError {
   let mut captureWriter = Default.default<CaptureWriter>()
-  run Format.format(template, &args) |> Effect.provideMut(&mut captureWriter)
-  let bytes = captureWriter.toBytes()
-  return move bytes
+  run Format.format(template, args) |> Effect.provideMut(&mut captureWriter)
+  return move captureWriter.toBytes()
 }
 
-/// Formats to string using `Format.format` and CaptureWriter
-pub effect fn format<'text, Args>(static template: string<'static>, args: &Args) -> string<'text>
+/// Formats `template` using `Format.format`, replacing placeholders and returning an owned String of the formatted template
+pub effect fn format<Args>(static template: string<'static>, args: &Args) -> String
   ! WriterError {
   let formatted_bytes_list = run formatToBytes(template, args)
   let formatted_bytes = List.asSlice(&formatted_bytes_list)
-  return unsafe String.fromUtf8Unchecked(formatted_bytes)
+  let mut allocator = Allocator.systemAllocatorProvider()
+  let bytes = (run Effect.provideMut(
+    Effect.result(Bytes.copy(formatted_bytes)),
+    &mut allocator,
+  )).unwrapOr(Bytes.make())
+  return unsafe String.fromBytesUnchecked(move bytes)
 }
 
 test effect fn testFormat() -> ()
@@ -32,5 +38,6 @@ test effect fn testFormat() -> ()
   run testing.expect(formatted_bytes[0] == b"check"[0], "failed to format")
 
   let formatted = run format("check", &.())
-  run testing.expect(formatted == "check", "failed to format")
+  run testing.expect(formatted.view() == "check", "failed to format")
+  run testing.expectFail(formatted.view() == "39", "formatted wrong")
 }

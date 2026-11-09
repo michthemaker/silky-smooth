@@ -18,7 +18,6 @@ impl CaptureWriter {
   /// Consumes the writer and moves the bytes out as a shared mutable byte slice
   pub fn toBytes(self: Self) -> List<u8> {
     let mut bytes = move self.bytes
-    drop self
     return move bytes
   }
 }
@@ -33,14 +32,9 @@ impl Writer for CaptureWriter {
   effect fn writeAll(self: &mut Self, value: &[u8]) -> ()
     ! WriterError
     ? &mut Writer {
-    let mut index: usize = 0
     let mut allocator = Allocator.systemAllocatorProvider()
-    while index < value.length {
-      drop run Effect.result(self.bytes.insert(self.length, value[index]))
-        |> Effect.provideMut(&mut allocator)
-      self.length = self.length + 1
-      index = index + 1
-    }
+    drop run Effect.result(self.bytes.appendSlice(value)) |> Effect.provideMut(&mut allocator)
+    self.length = self.length + value.length
     return ()
   }
 

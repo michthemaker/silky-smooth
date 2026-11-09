@@ -1,7 +1,14 @@
-import buffer.pixel { Pixel }
-import lib.default { Default }
-import buffer.frame_buffer { writeP3 }
+import buffer.frame_buffer { hold }
+
+union Shape {
+  Circle { radius: i32 },
+  Rect { width: i32, height: i32 },
+  Empty,
+}
 
 pub effect fn main() -> i32 {
+  let empty_shape = Shape.Empty
+  if let Shape.Empty = move empty_shape {}
+  drop hold
   return 0
 }
