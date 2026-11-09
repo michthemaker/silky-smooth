@@ -1,13 +1,8 @@
 //! Default values for types that have one obvious starting value.
 //!
 //! # When to use
-//! Implement [`Make`] for a type that has one obvious default, such as the origin for a point or
-//! transparent black for a pixel. Generic code can then create one with [`Default.default`]
-//! without knowing the type.
-//!
-//! # Details
-//! Each type states its own default in its `impl Make`. Nothing is derived from the fields of the
-//! type, so the default can mean whatever suits the type.
+//! Implement [`Make`] for a type with one obvious default, such as the origin for a point or
+//! transparent black for a pixel. Generic code can then create one with [`Default.default`].
 //!
 //! @category Core
 
@@ -15,9 +10,9 @@
 ///
 /// # Details
 ///
-/// `make` takes no arguments, so the compiler selects the implementation from the type that the
-/// call must return. Call it through the interface name, as `Make.make()`, or through
-/// [`Default.default`].
+/// `make` takes no arguments, so the compiler picks the implementation from the type the call
+/// must return. Call it as `Make.make()` or through [`Default.default`]. Each type states its
+/// own default; nothing is derived from its fields.
 ///
 /// # Examples
 ///
@@ -45,12 +40,9 @@
 ///
 /// # Gotchas
 ///
-/// `make` is a plain `fn`, not an `effect fn`, so an implementation cannot use services such as
-/// the `Allocator` or report an error. A type that needs either should offer a named constructor
-/// instead.
-///
-/// Implement `Make` only when the type has one obvious default. If you would have to choose
-/// between several reasonable values, a named constructor such as `origin` or `opaque` says more.
+/// `make` is a plain `fn`, so it cannot use services such as the `Allocator` or report an
+/// error. Such types should offer a named constructor instead, as should types with several
+/// reasonable defaults (`origin`, `opaque`).
 pub interface Make {
   /// Returns the default value of `Self`.
   fn make() -> Self
@@ -64,15 +56,10 @@ impl Default {
   ///
   /// # Details
   ///
-  /// Use this in generic code that must create a `T` and knows only that `T` implements [`Make`].
-  /// Where the type is known, calling `Make.make()` directly gives the same result.
-  ///
-  /// # Gotchas
-  ///
-  /// The compiler refuses a `T` that does not implement [`Make`].
+  /// For generic code that knows only that `T` implements [`Make`]. Where the type is known,
+  /// `Make.make()` gives the same result.
   pub fn default<T: Make>() -> T {
-    // Called through the interface name: the return type selects the implementation.
-    // `T.make()` is not accepted here.
+    // The return type selects the implementation; `T.make()` is not accepted here.
     return Make.make()
   }
 }

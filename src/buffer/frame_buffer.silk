@@ -15,8 +15,6 @@ import silk.num.u32
 import silk.num.usize
 import lib.iter { range, Step }
 
-pub const hold: i32 = 0
-
 pub struct PPMWriteError {
   pub message: string<'static>
 }

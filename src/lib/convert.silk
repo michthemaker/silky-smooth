@@ -1,0 +1,111 @@
+import silk.num.i32
+import silk.num.u8
+import silk.num.u32
+
+pub interface From<T> {
+  fn from(value: T) -> Self
+}
+
+/// Our form of Blanket impl
+pub interface Into<This> {
+  fn into<U: From<This>>(self: Self) -> U
+}
+
+pub fn from<U: From<T>, T>(value: T) -> U {
+  return From<T>.from(move value)
+}
+
+// test
+pub const hold: i32 = 0
+
+pub struct Rgba {
+  pub value: u32
+}
+
+pub struct Pixel {
+  r: u8,
+  g: u8,
+  b: u8
+}
+
+impl From<Rgba> for Pixel {
+  pub fn from(value: Rgba) -> Pixel {
+    return Pixel { r: 0, g: 0, b: 0 }
+  }
+}
+
+impl From<Rgba> for i32 {
+  pub fn from(value: Rgba) -> i32 {
+    return u32.toI32(value.value)
+  }
+}
+
+impl<'a> From<&'a Pixel> for Rgba {
+  pub fn from(value: &Pixel) -> Rgba {
+    return Rgba { value: u8.toU32(value.r) }
+  }
+}
+
+impl From<i32> for Rgba {
+  pub fn from(value: i32) -> Rgba {
+    return Rgba { value: move i32.toU32(value) }
+  }
+}
+
+impl Into<Rgba> for Rgba {
+  pub fn into<U: From<Rgba>>(self: Self) -> U {
+    return From<Rgba>.from(move self)
+  }
+}
+
+// impl Copy for Rgba {}
+
+fn check() -> () {
+  let rgba_2 = from<Rgba>(0)
+  let rgba_3 = from<Rgba>(23)
+  let rgba_4 = rgba_2.into<Pixel>()
+
+  let borrowed = from<Pixel>(move rgba_3) // borrows rgba_2
+
+  // let moved = from<i32>(rgba_2)         // still usable, then consumed here
+  drop (&rgba_4, move borrowed)
+}
+
+fn move_check() -> () {
+  let c = from<Rgba>(5)
+  let p = c.into<Pixel>()
+  drop p
+  // let n = c.into<i32>() // second use of c
+}
+
+impl<'a> From<&'a Rgba> for Pixel {
+  pub fn from(value: &Rgba) -> Pixel {
+    return Pixel { r: 0, g: 0, b: 0 } // same stub body as the by-value impl
+  }
+}
+
+fn t1_Correct<U: From<Rgba>>(r: Rgba) -> U {
+  return From<Rgba>.from(move r)
+}
+
+fn t2<'a, U: From<&'a Rgba>>(r: &'a Rgba) -> U {
+  return From<&'a Rgba>.from(r)
+}
+
+pub fn from_ref<'a, U: From<&'a T>, T>(value: &'a T) -> U {
+  return From<&'a T>.from(value)
+}
+
+fn checks() -> () {
+  let rgba = Rgba { value: 0xdc143cff }
+  let pixel = from<Pixel>(&rgba)
+  drop (pixel)
+
+  let rgba_1 = Rgba { value: 0xdc143cff }
+  let pixel_2 = t2<Pixel>(&rgba_1)
+  drop (&rgba_1, &pixel_2)
+
+  let rgba_2 = Rgba { value: 0xffbbddff }
+  let pixel_3 = from_ref<Pixel>(&rgba_1)
+  drop (&pixel_3, &rgba_2)
+}
