@@ -1,111 +1,105 @@
-import silk.num.i32
-import silk.num.u8
-import silk.num.u32
+//! Conversions between types.
+//!
+//! # When to use
+//! Implement [`From`] on the target type to say how a value of another type becomes one. Convert
+//! with [`from`], or with `.into<U>()` on an owned value after adding the one-line [`Into`] impl.
+//!
+//! @category Core
 
+/// Conversion of a `T` into `Self`.
+///
+/// # Details
+///
+/// Implement `From<T>` on the target type. Write one impl for the owned source and, where callers
+/// should keep their value, one for `&'a T`. A borrowed source is just `T = &Rgba`, so the two
+/// impls are independent and the compiler selects one from the argument type.
+///
+/// # Examples
+///
+/// ```silk
+/// import lib.convert { From, from }
+/// import silk.num.u32
+///
+/// struct Rgba {
+///   pub value: u32,
+/// }
+///
+/// impl From<Rgba> for i32 {
+///   pub fn from(value: Rgba) -> i32 {
+///     return u32.toI32(value.value)
+///   }
+/// }
+///
+/// impl<'a> From<&'a Rgba> for i32 {
+///   pub fn from(value: &Rgba) -> i32 {
+///     return u32.toI32(value.value)
+///   }
+/// }
+///
+/// pub fn main() -> i32 {
+///   let color = Rgba { value: 0 }
+///   let a = from<i32>(&color)      // borrows; color is still usable
+///   let b = from<i32>(move color)  // consumes color
+///   if a != b {
+///     return 1
+///   }
+///   return 0
+/// }
+/// ```
+///
+/// To accept anything convertible, bound the generic:
+///
+/// ```silk
+/// fn paint<U: From<T>, T>(src: T) -> U {
+///   return from<U>(src)
+/// }
+/// ```
+///
+/// # Gotchas
+///
+/// Name the target at the call, as in `from<i32>(x)`. Type arguments are inferred from the
+/// value, never from the expected result. Trait functions cannot be called on the type, so
+/// `i32.from(x)` is not accepted. Calling `From<T>.from` inside a function requires the bound
+/// `U: From<T>` on that function.
+///
+/// A `from` that takes a non-`Copy` value consumes it. Implement `From<&'a T>` to let callers
+/// keep theirs.
 pub interface From<T> {
+  /// Returns `value` converted into `Self`.
   fn from(value: T) -> Self
 }
 
-/// Our form of Blanket impl
-pub interface Into<This> {
-  fn into<U: From<This>>(self: Self) -> U
-}
-
+/// Converts `value` into a `U`. Pass `&value` to borrow it or `move value` to consume it.
 pub fn from<U: From<T>, T>(value: T) -> U {
   return From<T>.from(move value)
 }
 
-// test
-pub const hold: i32 = 0
-
-pub struct Rgba {
-  pub value: u32
-}
-
-pub struct Pixel {
-  r: u8,
-  g: u8,
-  b: u8
-}
-
-impl From<Rgba> for Pixel {
-  pub fn from(value: Rgba) -> Pixel {
-    return Pixel { r: 0, g: 0, b: 0 }
-  }
-}
-
-impl From<Rgba> for i32 {
-  pub fn from(value: Rgba) -> i32 {
-    return u32.toI32(value.value)
-  }
-}
-
-impl<'a> From<&'a Pixel> for Rgba {
-  pub fn from(value: &Pixel) -> Rgba {
-    return Rgba { value: u8.toU32(value.r) }
-  }
-}
-
-impl From<i32> for Rgba {
-  pub fn from(value: i32) -> Rgba {
-    return Rgba { value: move i32.toU32(value) }
-  }
-}
-
-impl Into<Rgba> for Rgba {
-  pub fn into<U: From<Rgba>>(self: Self) -> U {
-    return From<Rgba>.from(move self)
-  }
-}
-
-// impl Copy for Rgba {}
-
-fn check() -> () {
-  let rgba_2 = from<Rgba>(0)
-  let rgba_3 = from<Rgba>(23)
-  let rgba_4 = rgba_2.into<Pixel>()
-
-  let borrowed = from<Pixel>(move rgba_3) // borrows rgba_2
-
-  // let moved = from<i32>(rgba_2)         // still usable, then consumed here
-  drop (&rgba_4, move borrowed)
-}
-
-fn move_check() -> () {
-  let c = from<Rgba>(5)
-  let p = c.into<Pixel>()
-  drop p
-  // let n = c.into<i32>() // second use of c
-}
-
-impl<'a> From<&'a Rgba> for Pixel {
-  pub fn from(value: &Rgba) -> Pixel {
-    return Pixel { r: 0, g: 0, b: 0 } // same stub body as the by-value impl
-  }
-}
-
-fn t1_Correct<U: From<Rgba>>(r: Rgba) -> U {
-  return From<Rgba>.from(move r)
-}
-
-fn t2<'a, U: From<&'a Rgba>>(r: &'a Rgba) -> U {
-  return From<&'a Rgba>.from(r)
-}
-
-pub fn from_ref<'a, U: From<&'a T>, T>(value: &'a T) -> U {
-  return From<&'a T>.from(value)
-}
-
-fn checks() -> () {
-  let rgba = Rgba { value: 0xdc143cff }
-  let pixel = from<Pixel>(&rgba)
-  drop (pixel)
-
-  let rgba_1 = Rgba { value: 0xdc143cff }
-  let pixel_2 = t2<Pixel>(&rgba_1)
-  drop (&rgba_1, &pixel_2)
-
-  let rgba_2 = Rgba { value: 0xffbbddff }
-  let pixel_3 = from_ref<Pixel>(&rgba_1)
-  drop (&pixel_3, &rgba_2)
+/// Method-style conversion of an owned value into any `U` that implements [`From`] for it.
+///
+/// # Details
+///
+/// Add one impl per source type, with this body, and `.into<U>()` works for every `U` that has
+/// `From<Source>`:
+///
+/// ```silk
+/// impl Into<Rgba> for Rgba {
+///   pub fn into<U: From<Rgba>>(self: Self) -> U {
+///     return From<Rgba>.from(move self)
+///   }
+/// }
+///
+/// let n = color.into<i32>()
+/// ```
+///
+/// `This` is the implementing type itself, because the blanket `impl<T> Into<T> for T` is not
+/// accepted. Never put conversion logic in `Into`; implement [`From`] instead.
+///
+/// # Gotchas
+///
+/// `into` takes the whole value (`self: Self`) and works on owned values only. Calling it through
+/// a reference is rejected (OWN0012 for a non-`Copy` type). To convert from a borrow, use
+/// `from<U>(&value)`.
+pub interface Into<This> {
+  /// Returns `self` converted into `U`.
+  fn into<U: From<This>>(self: Self) -> U
 }

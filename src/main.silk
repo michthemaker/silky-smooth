@@ -1,4 +1,4 @@
-import lib.convert { hold }
+import buffer.frame_buffer { hold }
 import lib.iter { range, Step }
 import lib.println { println }
 import silk.io.logger { LogError }
