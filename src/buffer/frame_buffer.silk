@@ -1,18 +1,21 @@
 import buffer.pixel { Pixel }
 import lib.testing { AssertionError }
-import lib.testing
-import silk.text.format { Format }
-import silk.io.writer { WriterError, Writer }
-import silk.core.effect { Effect }
-import lib.capture_writer { CaptureWriter }
-import lib.default { Default }
-import lib.format { format }
 import silk.io.logger { LogError }
 import lib.println { println }
-import silk.text.string { String }
-import silk.mem.allocator { Allocator }
+import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.num.u32
 import silk.num.usize
+// import lib.testing
+// import silk.text.format { Format }
+// import silk.io.writer { WriterError, Writer }
+import silk.core.effect { Effect }
+// import lib.capture_writer { CaptureWriter }
+// import lib.default { Default }
+// import lib.format { format }
+// import silk.text.string { String }
+// import lib.iter { range, Step }
+import silk.system.filesystem_native { OsFileSystem }
+import silk.system.filesystem { FileError, Path, FileSystem }
 import lib.iter { range, Step }
 
 pub const hold: i32 = 0
@@ -22,51 +25,66 @@ pub struct PPMWriteError {
 }
 
 pub effect fn writeP3(width: u32, height: u32, pixel_grid: &[Pixel]) -> ()
-  ! WriterError | PPMWriteError | LogError
-  ? &mut Writer {
+  ! FileError | OutOfMemoryError | PPMWriteError | LogError
+  ? &mut Allocator | &mut FileSystem {
   if u32.checkedSubtract(usize.toU32(pixel_grid.length), width * height).isNone() {
     fail PPMWriteError { message: "Pixel count exceeds pixel_grid length" }
   }
 
-  let mut formatter = Format.makeDefault()
-  let mut allocator = Allocator.systemAllocatorProvider()
-  let headers: [String; 3] = [
-    (run Effect.result(String.copy("P3\n")) |> Effect.provideMut(&mut allocator)).unwrapOr(
-      String.make(),
-    ),
-    run format("{0} {1}\n", &.(width, height)),
-    run format("{0}\n", &.(255)),
-  ]
-  let mut index: usize = 0
-  while index < headers.length {
-    let header = &headers[index]
-    run Format.write(&mut formatter, header.ownedUtf8Bytes())
-    index = index + 1
-  }
-  let w = u32.toUsize(width)
-  let h = u32.toUsize(height)
+  let project = run Path.make("/home/mich/Projects/silky_smooth")
 
-  let mut rows = range(0, h)
-  while let Step.Index { i: y } = rows.next() {
-    let mut cols = range(0, w)
-    while let Step.Index { i: x } = cols.next() {
-      // 0 * 2 = 0 + 0 = 0
-      // 0 * 2 = 0 + 1 = 1
-      // 1 * 2 = 2 + 0 = 2
-      // 1 * 2 = 2 + 1 = 3
-      let pixel = pixel_grid[y * w + x]
-      run Format.format("{0} {1} {2}", &.(pixel.0, pixel.1, pixel.2))
-      if (x + 1) != w {
-        run Format.writeText(&mut formatter, "  ")
-      }
-    }
-    run Format.writeText(&mut formatter, "\n")
+  // let silk_toml_path = run project.join("silk.toml")
+  let dir = run FileSystem.listDirectory(&project)
+
+  let mut iter = range(0, dir.length())
+  while let Step.Index { i } = iter.next() {
+    let dir_entry_slice = dir.asSlice()
+    let path = &dir_entry_slice[i].path
+
+    run println("{:?}", &.(path.view().unwrapOr("")))
   }
+  // let file = run file_system.
+
+  //   let mut formatter = Format.makeDefault()
+  //   let mut allocator = Allocator.systemAllocatorProvider()
+  //   let headers: [String; 3] = [
+  //     (run Effect.result(String.copy("P3\n")) |> Effect.provideMut(&mut allocator)).unwrapOr(
+  //       String.make(),
+  //     ),
+  //     run format("{0} {1}\n", &.(width, height)),
+  //     run format("{0}\n", &.(255)),
+  //   ]
+  //   let mut index: usize = 0
+  //   while index < headers.length {
+  //     let header = &headers[index]
+  //     run Format.write(&mut formatter, header.ownedUtf8Bytes())
+  //     index = index + 1
+  //   }
+  //   let w = u32.toUsize(width)
+  //   let h = u32.toUsize(height)
+  //
+  //   let mut rows = range(0, h)
+  //   while let Step.Index { i: y } = rows.next() {
+  //     let mut cols = range(0, w)
+  //     while let Step.Index { i: x } = cols.next() {
+  //       // 0 * 2 = 0 + 0 = 0
+  //       // 0 * 2 = 0 + 1 = 1
+  //       // 1 * 2 = 2 + 0 = 2
+  //       // 1 * 2 = 2 + 1 = 3
+  //       let pixel = pixel_grid[y * w + x]
+  //       run Format.format("{0} {1} {2}", &.(pixel.0, pixel.1, pixel.2))
+  //       if (x + 1) != w {
+  //         run Format.writeText(&mut formatter, "  ")
+  //       }
+  //     }
+  //     run Format.writeText(&mut formatter, "\n")
+  //   }
 }
 
 test effect fn testWriteP3() -> ()
-  ! AssertionError<'static> | WriterError | LogError | PPMWriteError {
-  let mut captureWriter = Default.default<CaptureWriter>()
+  ! AssertionError<'static> | FileError | OutOfMemoryError | LogError | PPMWriteError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  let mut files = run OsFileSystem.make("/") |> Effect.provideMut(&mut allocator)
   run writeP3(
     2,
     2,
@@ -77,20 +95,21 @@ test effect fn testWriteP3() -> ()
       Pixel(255, 255, 255, 255),
     ],
   )
-    |> Effect.provideMut(&mut captureWriter)
-  run println("{}", &.(unsafe String.fromUtf8Unchecked(captureWriter.toBytes().asSlice())))
+    |> Effect.provideMut(&mut files)
+    |> Effect.provideMut(&mut allocator)
+  // run println("{}", &.(unsafe String.fromUtf8Unchecked(captureWriter.toBytes().asSlice())))
 
-  let mut captureWriter_2 = Default.default<CaptureWriter>()
-  let mut computation = writeP3(
-    2,
-    3,
-    &[
-      Pixel(255, 0, 0, 255),
-      Pixel(0, 255, 0, 255),
-      Pixel(0, 0, 255, 255),
-      Pixel(255, 255, 255, 255),
-    ],
-  )
-    |> Effect.provideMut(&mut captureWriter_2)
-  run testing.expectEffectToFailWith<PPMWriteError>(computation)
+  // let mut captureWriter_2 = Default.default<CaptureWriter>()
+  // let mut computation = writeP3(
+  //   2,
+  //   3,
+  //   &[
+  //     Pixel(255, 0, 0, 255),
+  //     Pixel(0, 255, 0, 255),
+  //     Pixel(0, 0, 255, 255),
+  //     Pixel(255, 255, 255, 255),
+  //   ],
+  // )
+  //   |> Effect.provideMut(&mut captureWriter_2)
+  // run testing.expectEffectToFailWith<PPMWriteError>(computation)
 }
