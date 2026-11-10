@@ -14,6 +14,7 @@ import lib.testing
 import silk.core.option { Option }
 import silk.core.result { Result }
 import lib.default { Make, Default }
+import lib.convert { Into, From, from }
 
 /// Unsigned Normalized 8-bit integer
 ///
@@ -44,11 +45,6 @@ impl Pixel {
 
   pub fn isTransparent(self: &Self) -> bool {
     return u8.equals(self.3, 0)
-  }
-
-  /// Create a PremultipliedPixel from a Pixel
-  pub fn toPremultiplied(self: &Self) -> PremultipliedPixel {
-    return PremultipliedPixel.fromPixel(self)
   }
 
   /// Uses bit-wise shift right and masking to make a `Pixel` from a `u32`
@@ -167,6 +163,34 @@ impl Equal for Pixel {
   }
 }
 
+impl From<PremultipliedPixel> for Pixel {
+  fn from(value: PremultipliedPixel) -> Pixel {
+    return Pixel(
+      unpremultiply(value.0, value.3),
+      unpremultiply(value.1, value.3),
+      unpremultiply(value.2, value.3),
+      value.3,
+    )
+  }
+}
+
+impl<'a> From<&'a PremultipliedPixel> for Pixel {
+  fn from(value: &'a PremultipliedPixel) -> Pixel {
+    return Pixel(
+      unpremultiply(value.0, value.3),
+      unpremultiply(value.1, value.3),
+      unpremultiply(value.2, value.3),
+      value.3,
+    )
+  }
+}
+
+impl Into<Pixel> for Pixel {
+  pub fn into<U: From<Pixel>>(self: Self) -> U {
+    return From<Pixel>.from(move self)
+  }
+}
+
 pub tuple PremultipliedPixel(u8, u8, u8, unorm8)
 
 impl PremultipliedPixel {
@@ -185,10 +209,6 @@ impl PremultipliedPixel {
     return move Result<PremultipliedPixel, PixelConversionError>.succeed(
       PremultipliedPixel(r, g, b, a),
     )
-  }
-
-  pub fn fromPixel(pixel: &Pixel) -> PremultipliedPixel {
-    return premultiplyFromRaw(pixel.0, pixel.1, pixel.2, pixel.3)
   }
 }
 
@@ -211,6 +231,24 @@ impl Debug for PremultipliedPixel {
 impl Equal for PremultipliedPixel {
   fn equals(left: &Self, right: &PremultipliedPixel) -> bool {
     return left.0 == right.0 && left.1 == right.1 && left.2 == right.2 && left.3 == right.3
+  }
+}
+
+impl From<Pixel> for PremultipliedPixel {
+  fn from(value: Pixel) -> PremultipliedPixel {
+    return premultiplyFromRaw(value.0, value.1, value.2, value.3)
+  }
+}
+
+impl<'a> From<&'a Pixel> for PremultipliedPixel {
+  fn from(value: &'a Pixel) -> PremultipliedPixel {
+    return premultiplyFromRaw(value.0, value.1, value.2, value.3)
+  }
+}
+
+impl Into<PremultipliedPixel> for PremultipliedPixel {
+  pub fn into<U: From<PremultipliedPixel>>(self: Self) -> U {
+    return From<PremultipliedPixel>.from(move self)
   }
 }
 
@@ -240,6 +278,16 @@ fn premultiplyFromRaw(r: u8, g: u8, b: u8, a: unorm8) -> PremultipliedPixel {
     |> u16.toU8()
 
   return PremultipliedPixel(out_r, out_g, out_b, a)
+}
+
+/// One channel of the straight value: round(c * 255 / a), clamped to 255. Needs a > 0.
+fn unpremultiply(c: u8, a: u8) -> u8 {
+  let a32 = u8.toU32(a)
+  let v = (u8.toU32(c) * 255 + a32 / 2) / a32
+  if v > 255 {
+    return 255
+  }
+  return u32.toU8(v)
 }
 
 fn divideBy255Rounded(v: u16) -> u16 {
@@ -285,15 +333,17 @@ test effect fn testPixelFromHex() -> ()
 test effect fn testPremultipliedPixel() -> ()
   ! AssertionError<'static> | LogError {
   run testing.expectToFail(PremultipliedPixel.fromPremultiplied(24, 102, 29, 100))
-  let premuled = PremultipliedPixel.fromPixel(&Pixel(24, 99, 29, 255))
+  let premuled = from<PremultipliedPixel>(&Pixel(24, 99, 29, 255))
   run testing.expect(
-    &premuled == &Pixel(24, 99, 29, 255).toPremultiplied(),
+    &premuled == &Pixel(24, 99, 29, 255).into<PremultipliedPixel>(),
     "Isn't the same premulitiplied pixel",
   )
 
-  let premuled_2 = PremultipliedPixel.fromPixel(&Pixel(10, 234, 29, 245))
+  let premuled_2 = from<PremultipliedPixel>(&Pixel(10, 234, 29, 245))
   let pixel_1 = Pixel(24, 99, 29, 255)
-  drop pixel_1
+  let premuled_c = pixel_1.into<PremultipliedPixel>()
+  let lossy = premuled_c.into<Pixel>()
+  drop lossy
 
   run testing.expect(premuled_2.0 == 10, "Premultiplied red channel isn't the same")
   run testing.expect(premuled_2.1 == 225, "Premultiplied green channel isn't the same")
