@@ -1,12 +1,3 @@
-### GitHub description (short)
-
-```
-Experimental graphics primitives in Silk — pixels, framebuffers, PPM, and the path toward a smooth design library.
-```
-
-### README.md
-
-```markdown
 # silky-smooth
 
 Experimental graphics primitives written in [Silk](https://silklang.org/).
