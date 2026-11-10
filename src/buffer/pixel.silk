@@ -77,6 +77,45 @@ impl Pixel {
     return u8.equals(self.3, 0)
   }
 
+  /// Makes a `Pixel` from a `u32` in `0xRRGGBBAA` order.
+  ///
+  /// # Details
+  ///
+  /// `ff` in the last byte is fully opaque and `00` is fully transparent.
+  ///
+  /// # Examples
+  ///
+  /// ```silk
+  /// let pixel = Pixel.fromU32(0xdc143cff)
+  /// ```
+  pub fn fromU32(value: u32) -> Pixel {
+    let r: u8 = u32.shiftRight(value, 24)
+      |> u32.bitAnd(0xFF)
+      |> u32.toU8()
+    let g: u8 = u32.shiftRight(value, 16)
+      |> u32.bitAnd(0xFF)
+      |> u32.toU8()
+    let b: u8 = u32.shiftRight(value, 8)
+      |> u32.bitAnd(0xFF)
+      |> u32.toU8()
+    let a: unorm8 = u32.bitAnd(value, 0xFF) |> u32.toU8()
+    return Pixel(r, g, b, a)
+  }
+
+  /// Packs the pixel into a `u32` in `0xRRGGBBAA` order, the inverse of `fromU32`.
+  pub fn toU32(self: &Self) -> u32 {
+    let r = u8.toU32(self.0) |> u32.shiftLeft(24)
+    let g = u8.toU32(self.1) |> u32.shiftLeft(16)
+    let b = u8.toU32(self.2) |> u32.shiftLeft(8)
+    let a = u8.toU32(self.3)
+    return u32.add(u32.add(r, g), u32.add(b, a))
+  }
+
+  /// Returns this pixel with each color channel multiplied by alpha, rounded to nearest.
+  pub fn toPremultiplied(self: &Self) -> PremultipliedPixel {
+    return premultiplyFromRaw(self.0, self.1, self.2, self.3)
+  }
+
   /// Returns the sRGB pixel of a CSS hex color, or `None` when `text` is not one.
   ///
   /// # Details
@@ -152,54 +191,21 @@ impl Equal for Pixel {
   }
 }
 
-impl From<u32> for Pixel {
-  fn from(value: u32) -> Pixel {
-    let r: u8 = u32.shiftRight(value, 24)
-      |> u32.bitAnd(0xFF)
-      |> u32.toU8()
-    let g: u8 = u32.shiftRight(value, 16)
-      |> u32.bitAnd(0xFF)
-      |> u32.toU8()
-    let b: u8 = u32.shiftRight(value, 8)
-      |> u32.bitAnd(0xFF)
-      |> u32.toU8()
-    let a: unorm8 = u32.shiftRight(value, 0)
-      |> u32.bitAnd(0xFF)
-      |> u32.toU8()
-
-    return Pixel(r, g, b, a)
-  }
-}
-
 impl From<PremultipliedPixel> for Pixel {
   fn from(value: PremultipliedPixel) -> Pixel {
-    return Pixel(
-      unpremultiply(value.0, value.3),
-      unpremultiply(value.1, value.3),
-      unpremultiply(value.2, value.3),
-      value.3,
-    )
+    return value.toPixel()
   }
 }
 
 impl<'a> From<&'a PremultipliedPixel> for Pixel {
   fn from(value: &'a PremultipliedPixel) -> Pixel {
-    return Pixel(
-      unpremultiply(value.0, value.3),
-      unpremultiply(value.1, value.3),
-      unpremultiply(value.2, value.3),
-      value.3,
-    )
+    return value.toPixel()
   }
 }
 
 impl From<Pixel> for u32 {
   fn from(value: Pixel) -> u32 {
-    let r = u8.toU32(value.0) |> u32.shiftLeft(24)
-    let g = u8.toU32(value.1) |> u32.shiftLeft(16)
-    let b = u8.toU32(value.2) |> u32.shiftLeft(8)
-    let a = u8.toU32(value.3) |> u32.shiftLeft(0)
-    return u32.add(u32.add(r, g), u32.add(b, a))
+    return value.toU32()
   }
 }
 
@@ -257,6 +263,24 @@ impl PremultipliedPixel {
       PremultipliedPixel(r, g, b, a),
     )
   }
+
+  /// Returns the straight-alpha `Pixel`. This conversion is lossy.
+  ///
+  /// # Gotchas
+  ///
+  /// Alpha `0` gives transparent black, because the color cannot be recovered. Low alpha leaves
+  /// few distinct channel values. The round trip is exact only when alpha is `255`.
+  pub fn toPixel(self: &Self) -> Pixel {
+    if self.3 == 0 {
+      return Pixel(0, 0, 0, 0)
+    }
+    return Pixel(
+      unpremultiply(self.0, self.3),
+      unpremultiply(self.1, self.3),
+      unpremultiply(self.2, self.3),
+      self.3,
+    )
+  }
 }
 
 impl Make for PremultipliedPixel {
@@ -283,13 +307,13 @@ impl Equal for PremultipliedPixel {
 
 impl From<Pixel> for PremultipliedPixel {
   fn from(value: Pixel) -> PremultipliedPixel {
-    return premultiplyFromRaw(value.0, value.1, value.2, value.3)
+    return value.toPremultiplied()
   }
 }
 
 impl<'a> From<&'a Pixel> for PremultipliedPixel {
   fn from(value: &'a Pixel) -> PremultipliedPixel {
-    return premultiplyFromRaw(value.0, value.1, value.2, value.3)
+    return value.toPremultiplied()
   }
 }
 
@@ -357,8 +381,7 @@ test effect fn testPixelConversions() -> ()
   run testing.expectFail(&from<u32>(pixel) == &pixel_value, "is the same pixel")
 
   drop pixel.into<u32>()
-  let color: u32 = 0xdc158b00
-  let pixel_2 = from<Pixel>(color)
+  let pixel_2 = Pixel.fromU32(0xdc158b00)
 
   let r: u8 = 0xdc
   let g: u8 = 0x15
@@ -374,8 +397,7 @@ test effect fn testPixelFromHex() -> ()
   ! AssertionError<'static> | LogError {
   let pixel = Pixel.fromHex("#dc143c00").unwrapOr(Default.default<Pixel>())
 
-  let color: u32 = 0xdc143c00
-  run testing.expect(&pixel == &from<Pixel>(color), "Not the same pixel")
+  run testing.expect(&pixel == &Pixel.fromU32(0xdc143c00), "Not the same pixel")
   run testing.expect(pixel.isTransparent() == true, "pixel isn't transparent")
   run testing.expectFail(Pixel(24, 54, 200, 0).isOpaque() == true, "pixel is actually opaque")
 }
@@ -393,8 +415,7 @@ test effect fn testPremultipliedPixel() -> ()
   let pixel_1 = Pixel(24, 99, 29, 255)
   let premuled_c = pixel_1.into<PremultipliedPixel>()
   let lossy = premuled_c.into<Pixel>()
-  let number: u32 = 0xdc158b00
-  let soeal = from<Pixel>(number)
+  let soeal = Pixel.fromU32(0xdc158b00)
   drop (lossy, soeal)
 
   run testing.expect(premuled_2.0 == 10, "Premultiplied red channel isn't the same")
