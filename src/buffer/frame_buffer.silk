@@ -61,10 +61,10 @@ pub effect fn writeP3(width: u32, height: u32, pixel_grid: &[Pixel]) -> ()
     }
     run Format.writeText(&mut formatter, "\n") |> Effect.provideMut(&mut capture_writer)
   }
-  let project = run Path.make("/home/mich/Projects/silky_smooth")
+  let project = run Path.make("/home/mich/Projects/silky_smooth/out")
   let ppm_file = run Path.join(&project, "out.ppm")
 
-  run FileSystem.writeFile(&ppm_file, capture_writer.toBytes().asSlice())
+  run FileSystem.writeFileWithParents(&ppm_file, capture_writer.toBytes().asSlice())
 }
 
 test effect fn testWriteP3() -> ()
@@ -84,7 +84,7 @@ test effect fn testWriteP3() -> ()
   run writeP3(3840, 2160, pixels.asSlice())
     |> Effect.provideMut(&mut files)
     |> Effect.provideMut(&mut allocator)
-  let project = run Path.make("/home/mich/Projects/silky_smooth")
+  let project = run Path.make("/home/mich/Projects/silky_smooth/out")
     |> Effect.provideMut(&mut allocator)
 
   let ppm_file = run Path.join(&project, "out.ppm") |> Effect.provideMut(&mut allocator)
