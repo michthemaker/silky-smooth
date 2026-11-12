@@ -1,9 +1,18 @@
 import silk.io.writer { Writer, WriterError }
 import silk.collections.list { List }
 import lib.default { Make }
-import silk.mem.allocator { Allocator }
+import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.core.effect { Effect }
 
+///
+///
+/// Examples
+/// ```silk
+/// import lib.default { Default }
+///
+/// let mut capture_writer = Default.default<CaptureWriter>()
+/// let mut capture_writer = CaptureWriter.default()
+/// ```
 pub struct CaptureWriter {
   bytes: List<u8>,
   length: usize,
@@ -20,11 +29,25 @@ impl CaptureWriter {
     let mut bytes = move self.bytes
     return move bytes
   }
+
+  /// Makes a default CaptureWriter with a growable List<u8>
+  ///
+  /// # Details
+  /// Same as `Default.default<CaptureWriter>()`
+  pub fn default() -> Self {
+    return CaptureWriter { bytes: List<u8>.make(), length: 0 }
+  }
+
+  pub effect fn makeWithCapacity(capacity: usize) -> Self
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    return CaptureWriter { bytes: run List<u8>.makeWithCapacity(capacity), length: 0 }
+  }
 }
 
 impl Make for CaptureWriter {
   fn make() -> Self {
-    return CaptureWriter { bytes: List<u8>.make(), length: 0 }
+    return CaptureWriter.default()
   }
 }
 

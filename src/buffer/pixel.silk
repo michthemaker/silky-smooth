@@ -61,6 +61,14 @@ pub struct PixelConversionError {
 }
 
 impl Pixel {
+  /// Makes the default value of a Pixel
+  ///
+  /// # Details
+  /// Same as `Default.default<Pixel>()`
+  pub fn default() -> Self {
+    return Pixel(0, 0, 0, 255)
+  }
+
   pub fn new(r: u8, g: u8, b: u8, a: unorm8) -> Pixel {
     return Pixel(r, g, b, a)
   }
@@ -171,7 +179,7 @@ impl Pixel {
 impl Make for Pixel {
   /// Creates a fully opaque black pixel
   pub fn make() -> Pixel {
-    return Pixel(0, 0, 0, 255)
+    return Pixel.default()
   }
 }
 
@@ -247,6 +255,14 @@ impl Into<Pixel> for Pixel {
 pub tuple PremultipliedPixel(u8, u8, u8, unorm8)
 
 impl PremultipliedPixel {
+  /// Makes the default value of a PremultipliedPixel
+  ///
+  /// # Details
+  /// Same as `Default.default<PremultipliedPixel>()`
+  pub fn default() -> Self {
+    return PremultipliedPixel(0, 0, 0, 255)
+  }
+
   /// Create a PremultipliedPixel from pre-multiplied values
   /// # Details
   /// Returns a Failure result if any of the r,g,b channels exceeds the alpha channel
@@ -285,7 +301,7 @@ impl PremultipliedPixel {
 
 impl Make for PremultipliedPixel {
   pub fn make() -> PremultipliedPixel {
-    return PremultipliedPixel(0, 0, 0, 255)
+    return PremultipliedPixel.default()
   }
 }
 
@@ -353,8 +369,8 @@ fn premultiplyFromRaw(r: u8, g: u8, b: u8, a: unorm8) -> PremultipliedPixel {
 
 /// One channel of the straight value: round(c * 255 / a), clamped to 255. Needs a > 0.
 fn unpremultiply(c: u8, a: u8) -> u8 {
-  let a32 = u8.toU32(a)
-  let v = (u8.toU32(c) * 255 + a32 / 2) / a32
+  let alpha32 = u8.toU32(a)
+  let v = (u8.toU32(c) * 255 + alpha32 / 2) / alpha32
   if v > 255 {
     return 255
   }

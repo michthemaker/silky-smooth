@@ -1,15 +1,42 @@
-import buffer.frame_buffer { hold }
-import lib.iter { range, Step }
-import lib.println { println }
+import buffer.frame_buffer { PPMWriteError, writeP3 }
 import silk.io.logger { LogError }
+import silk.testing.testing { AssertionError }
+import silk.system.filesystem { FileError }
+import silk.mem.allocator { OutOfMemoryError, Allocator }
+import silk.io.writer { WriterError }
+import silk.core.effect { Effect }
+import silk.system.filesystem_native { OsFileSystem }
+import silk.collections.list { List }
+import buffer.pixel { Pixel }
+import lib.println { println }
+import lib.time { Instant }
 
-pub effect fn main() -> i32
-  ! LogError {
-  let mut iter = range(0, 5)
-  while let Step.Index { i } = move iter.next() {
-    run println("{}", &.(i))
-  }
+pub effect fn main() -> ()
+  ! LogError
+    | AssertionError<'static>
+    | FileError
+    | OutOfMemoryError
+    | LogError
+    | PPMWriteError
+    | WriterError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  let mut files = run OsFileSystem.make("/") |> Effect.provideMut(&mut allocator)
 
-  drop hold
-  return 0
+  let mut instant = Instant.now()
+  let mut pixels = run List<Pixel>.makeWithCapacity(3840 * 2160)
+    |> Effect.provideMut(&mut allocator)
+  run println("Allocated memory for pixels in {:#?} ", &.(instant.elapsed()))
+
+  instant = Instant.now()
+  run pixels.appendRepeated(Pixel.opaque(255, 0, 0), 3840 * 2160)
+    |> Effect.provideMut(&mut allocator)
+
+  run println("Appended pixels in  {:#?} ", &.(instant.elapsed()))
+
+  instant = Instant.now()
+  run writeP3(3840, 2160, pixels.asSlice())
+    |> Effect.provideMut(&mut files)
+    |> Effect.provideMut(&mut allocator)
+
+  run println("Wrote P3 in {:#?} ", &.(instant.elapsed()))
 }

@@ -1,0 +1,719 @@
+//! One-hundred-twenty-eight-bit unsigned integers, stored as two `u64` limbs.
+//!
+//! # When to use
+//! Use `u128` when a value can exceed `u64`, such as the total nanoseconds of a `Duration` or the
+//! exact product of two `u64` values.
+//!
+//! # Details
+//! A value is `hi * 2^64 + lo`. The arithmetic has the same four forms as the other integer types:
+//! plain (traps on overflow), `checked` (returns `None`), `wrapping` (modulo 2^128), and
+//! `saturating` (returns [`MIN`] or [`MAX`]). Division and remainder by zero trap.
+//! The shift count must be in the range 0 to `BITS - 1`. A rotate reduces its count modulo
+//! [`BITS`]. A right shift inserts zero bits.
+//!
+//! @category Numbers
+
+import silk.core.ownership { Copy }
+import silk.core.option { Option }
+import silk.core.order { Order, Ordering }
+import silk.num.u32
+import silk.num.u64
+import silk.num.f64
+import silk.num.f32
+import lib.convert { Into, From }
+import silk.core.ops {
+  Add,
+  Subtract,
+  Multiply,
+  Divide,
+  Remainder,
+  BitAnd,
+  BitOr,
+  BitXor,
+  BitNot,
+  Not
+}
+import silk.core.equal { Equal }
+import silk.core.order { Order, Ordering }
+import silk.num.numeric { Zero, One }
+
+/// A 128-bit unsigned integer equal to `hi * 2^64 + lo`.
+pub struct u128 {
+  pub hi: u64,
+  pub lo: u64,
+}
+
+const MASK32: u64 = 0xFFFF_FFFF
+
+/// The largest `u128` value.
+pub const MAX: u128 = u128 { hi: u64.MAX, lo: u64.MAX }
+
+/// The smallest `u128` value.
+pub const MIN: u128 = u128 { hi: 0, lo: 0 }
+
+/// The fixed width of `u128`, in bits.
+pub const BITS: u32 = 128
+
+const ONE: u128 = u128 { hi: 0, lo: 1 }
+
+fn make(hi: u64, lo: u64) -> u128 {
+  return u128 { hi: hi, lo: lo }
+}
+
+fn flag(value: bool) -> u64 {
+  if value {
+    return 1
+  }
+  return 0
+}
+
+fn isZero(value: u128) -> bool {
+  return value.hi == 0 && value.lo == 0
+}
+
+struct DivRem {
+  quot: u128,
+  rem: u128,
+}
+
+// ---------------------------------------------------------------------------
+// Conversions into u128: add these to the u64 and u32 modules
+// ---------------------------------------------------------------------------
+//
+// In silk.num.u64:
+//
+//   /// Converts `value` exactly to `u128`. Every `u64` value is representable.
+//   pub fn toU128(value: u64) -> u128 { return u128 { hi: 0, lo: value } }
+//   pub fn checkedToU128(value: u64) -> Option<u128> { return Option<u128>.some(toU128(value)) }
+//   pub fn wrappingToU128(value: u64) -> u128 { return toU128(value) }
+//
+// In silk.num.u32:
+//
+//   /// Converts `value` exactly to `u128`. Every `u32` value is representable.
+//   pub fn toU128(value: u32) -> u128 { return u128 { hi: 0, lo: toU64(value) } }
+//   pub fn checkedToU128(value: u32) -> Option<u128> { return Option<u128>.some(toU128(value)) }
+//   pub fn wrappingToU128(value: u32) -> u128 { return toU128(value) }
+
+impl u128 {
+  pub fn fromU64(v: u64) -> u128 {
+    return u128 { hi: 0, lo: v }
+  }
+
+  pub fn fromF64(v: f64) -> u128 {
+    return u128 { hi: 0, lo: f64.toU64(v) }
+  }
+
+  pub fn fromU32(v: u32) -> u128 {
+    return u128 { hi: 0, lo: u32.toU64(v) }
+  }
+
+  pub fn fromF32(v: f32) -> u128 {
+    return u128 { hi: 0, lo: f32.toU64(v) }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Order and comparison
+  // ---------------------------------------------------------------------------
+
+  /// Compares `left` and `right`. The high limb decides first, and the low limb breaks ties.
+  pub fn compare(left: &u128, right: &u128) -> Ordering {
+    if left.hi < right.hi {
+      return Ordering.Less
+    }
+    if left.hi > right.hi {
+      return Ordering.Greater
+    }
+    if left.lo < right.lo {
+      return Ordering.Less
+    }
+    if left.lo > right.lo {
+      return Ordering.Greater
+    }
+    return Ordering.Equal
+  }
+
+  /// Returns `true` if `left` and `right` are not equal.
+  pub fn notEquals(left: u128, right: u128) -> bool {
+    return !equals(&left, &right)
+  }
+
+  /// Returns `true` if `left` is less than `right`.
+  pub fn lessThan(left: u128, right: u128) -> bool {
+    return u128.compare(&left, &right) == Ordering.Less
+  }
+
+  /// Returns `true` if `left` is less than or equal to `right`.
+  pub fn lessOrEqual(left: u128, right: u128) -> bool {
+    return u128.compare(&left, &right) != Ordering.Greater
+  }
+
+  /// Returns `true` if `left` is greater than `right`.
+  pub fn greaterThan(left: u128, right: u128) -> bool {
+    return u128.compare(&left, &right) == Ordering.Greater
+  }
+
+  /// Returns `true` if `left` is greater than or equal to `right`.
+  pub fn greaterOrEqual(left: u128, right: u128) -> bool {
+    return u128.compare(&left, &right) != Ordering.Less
+  }
+
+  // ---------------------------------------------------------------------------
+  // Addition
+  // ---------------------------------------------------------------------------
+
+  /// Returns `left + right`, wrapped to the `u128` range. Use this function for
+  /// deliberate modulo arithmetic.
+  pub fn wrappingAdd(left: u128, right: u128) -> u128 {
+    let lo = u64.wrappingAdd(left.lo, right.lo)
+    let carry = flag(lo < left.lo)
+    let hi = u64.wrappingAdd(u64.wrappingAdd(left.hi, right.hi), carry)
+    return make(hi, lo)
+  }
+
+  /// Returns `Some` with `left + right`, or `None` if the result is outside the `u128` range.
+  /// Use this function when overflow is input data.
+  pub fn checkedAdd(left: u128, right: u128) -> Option<u128> {
+    let sum = u128.wrappingAdd(left, right)
+    if u128.lessThan(sum, left) {
+      return Option<u128>.none()
+    }
+    return Option<u128>.some(sum)
+  }
+
+  /// Returns `left + right` and traps if the result is outside the `u128` range. Use this function
+  /// when overflow is a program error.
+  pub fn add(left: u128, right: u128) -> u128 {
+    let sum = u128.wrappingAdd(left, right)
+    if u128.lessThan(sum, left) {
+      return Intrinsic.trap("u128.add: the result is outside the u128 range")
+    }
+    return sum
+  }
+
+  /// Returns `left + right`, clamped to [`MAX`]. Use this function when a
+  /// boundary value is the required overflow result.
+  pub fn saturatingAdd(left: u128, right: u128) -> u128 {
+    let sum = u128.wrappingAdd(left, right)
+    if u128.lessThan(sum, left) {
+      return MAX
+    }
+    return sum
+  }
+
+  // ---------------------------------------------------------------------------
+  // Subtraction
+  // ---------------------------------------------------------------------------
+
+  /// Returns `left - right`, wrapped to the `u128` range. Use this function for
+  /// deliberate modulo arithmetic.
+  pub fn wrappingSubtract(left: u128, right: u128) -> u128 {
+    let lo = u64.wrappingSubtract(left.lo, right.lo)
+    let borrow = flag(left.lo < right.lo)
+    let hi = u64.wrappingSubtract(u64.wrappingSubtract(left.hi, right.hi), borrow)
+    return make(hi, lo)
+  }
+
+  /// Returns `Some` with `left - right`, or `None` if the result is outside the `u128` range.
+  /// Use this function when overflow is input data.
+  pub fn checkedSubtract(left: u128, right: u128) -> Option<u128> {
+    if u128.lessThan(left, right) {
+      return Option<u128>.none()
+    }
+    return Option<u128>.some(u128.wrappingSubtract(left, right))
+  }
+
+  /// Returns `left - right` and traps if the result is outside the `u128` range. Use this function
+  /// when overflow is a program error.
+  pub fn subtract(left: u128, right: u128) -> u128 {
+    if u128.lessThan(left, right) {
+      return Intrinsic.trap("u128.subtract: the result is outside the u128 range")
+    }
+    return u128.wrappingSubtract(left, right)
+  }
+
+  /// Returns `left - right`, clamped to [`MIN`]. Use this function when a
+  /// boundary value is the required overflow result.
+  pub fn saturatingSubtract(left: u128, right: u128) -> u128 {
+    if u128.lessThan(left, right) {
+      return MIN
+    }
+    return u128.wrappingSubtract(left, right)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Multiplication
+  // ---------------------------------------------------------------------------
+
+  /// Returns `left * right`, wrapped to the `u128` range. Use this function for
+  /// deliberate modulo arithmetic.
+  pub fn wrappingMultiply(left: u128, right: u128) -> u128 {
+    let lo = u64.wrappingMultiply(left.lo, right.lo)
+    let cross = u64.wrappingAdd(
+      u64.wrappingMultiply(left.hi, right.lo),
+      u64.wrappingMultiply(left.lo, right.hi),
+    )
+    let hi = u64.wrappingAdd(u64.multiplyHigh(left.lo, right.lo), cross)
+    return make(hi, lo)
+  }
+
+  /// Returns `Some` with `left * right`, or `None` if the result is outside the `u128` range.
+  /// Use this function when overflow is input data.
+  pub fn checkedMultiply(left: u128, right: u128) -> Option<u128> {
+    if multiplyOverflows(left, right) {
+      return Option<u128>.none()
+    }
+    return Option<u128>.some(u128.wrappingMultiply(left, right))
+  }
+
+  /// Returns `left * right` and traps if the result is outside the `u128` range. Use this function
+  /// when overflow is a program error.
+  pub fn multiply(left: u128, right: u128) -> u128 {
+    if multiplyOverflows(left, right) {
+      return Intrinsic.trap("u128.multiply: the result is outside the u128 range")
+    }
+    return u128.wrappingMultiply(left, right)
+  }
+
+  /// Returns `left * right`, clamped to [`MAX`]. Use this function when a
+  /// boundary value is the required overflow result.
+  pub fn saturatingMultiply(left: u128, right: u128) -> u128 {
+    if multiplyOverflows(left, right) {
+      return MAX
+    }
+    return u128.wrappingMultiply(left, right)
+  }
+
+  /// Returns `left / right`. Traps if `right` is zero. Use this function when a zero
+  /// divisor is a program error.
+  pub fn divide(left: u128, right: u128) -> u128 {
+    if isZero(right) {
+      return Intrinsic.trap("u128.divide: the divisor is zero")
+    }
+    return divRem(left, right).quot
+  }
+
+  /// Returns the remainder of `left / right`. Traps if `right` is zero. Use this function
+  /// when a zero divisor is a program error.
+  pub fn remainder(left: u128, right: u128) -> u128 {
+    if isZero(right) {
+      return Intrinsic.trap("u128.remainder: the divisor is zero")
+    }
+    return divRem(left, right).rem
+  }
+
+  /// Returns `Some` with `left / right`, or `None` if `right` is zero. Use this
+  /// function when a zero divisor is input data.
+  pub fn checkedDivide(left: u128, right: u128) -> Option<u128> {
+    if isZero(right) {
+      return Option<u128>.none()
+    }
+    return Option<u128>.some(divRem(left, right).quot)
+  }
+
+  /// Returns `Some` with the remainder, or `None` if `right` is zero. Use this function
+  /// when a zero divisor is input data.
+  pub fn checkedRemainder(left: u128, right: u128) -> Option<u128> {
+    if isZero(right) {
+      return Option<u128>.none()
+    }
+    return Option<u128>.some(divRem(left, right).rem)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bit operations
+  // ---------------------------------------------------------------------------
+
+  /// Returns the bitwise OR of `left` and `right`.
+  pub fn bitOr(left: u128, right: u128) -> u128 {
+    return make(u64.bitOr(left.hi, right.hi), u64.bitOr(left.lo, right.lo))
+  }
+
+  /// Returns the bitwise exclusive OR of `left` and `right`.
+  pub fn bitXor(left: u128, right: u128) -> u128 {
+    return make(u64.bitXor(left.hi, right.hi), u64.bitXor(left.lo, right.lo))
+  }
+
+  /// Returns `value` with each bit inverted.
+  pub fn bitNot(value: u128) -> u128 {
+    return make(u64.bitNot(value.hi), u64.bitNot(value.lo))
+  }
+
+  /// Shifts `left` bits left by `right` positions. Traps if `right` is not less than [`BITS`].
+  pub fn shiftLeft(left: u128, right: u32) -> u128 {
+    if right >= BITS {
+      return Intrinsic.trap("u128.shiftLeft: the shift count is not less than BITS")
+    }
+    if right == 0 {
+      return left
+    }
+    let right = u32.toU64(right)
+    if right >= 64 {
+      return make(u64.shiftLeft(left.lo, right - 64), 0)
+    }
+    let hi = u64.bitOr(u64.shiftLeft(left.hi, right), u64.shiftRight(left.lo, 64 - right))
+    return make(hi, u64.shiftLeft(left.lo, right))
+  }
+
+  /// Shifts `left` bits right by `right` positions and inserts zero bits. Traps if `right` is
+  /// not less than [`BITS`].
+  pub fn shiftRight(left: u128, right: u32) -> u128 {
+    if right >= BITS {
+      return Intrinsic.trap("u128.shiftRight: the shift count is not less than BITS")
+    }
+    if right == 0 {
+      return left
+    }
+    let right = u32.toU64(right)
+    if right >= 64 {
+      return make(0, u64.shiftRight(left.hi, right - 64))
+    }
+    let lo = u64.bitOr(u64.shiftRight(left.lo, right), u64.shiftLeft(left.hi, 64 - right))
+    return make(u64.shiftRight(left.hi, right), lo)
+  }
+
+  /// Rotates the bits of `left` left by `right` positions. The count is reduced modulo [`BITS`], so
+  /// each count is valid.
+  pub fn rotateLeft(left: u128, right: u32) -> u128 {
+    let count = u32.remainder(right, BITS)
+    if count == 0 {
+      return left
+    }
+    return u128.bitOr(u128.shiftLeft(left, count), u128.shiftRight(left, BITS - count))
+  }
+
+  /// Rotates the bits of `left` right by `right` positions. The count is reduced modulo [`BITS`], so
+  /// each count is valid.
+  pub fn rotateRight(left: u128, right: u32) -> u128 {
+    let count = u32.remainder(right, BITS)
+    if count == 0 {
+      return left
+    }
+    return u128.bitOr(u128.shiftRight(left, count), u128.shiftLeft(left, BITS - count))
+  }
+
+  /// Returns the number of one bits in `value`.
+  pub fn countOnes(value: u128) -> u32 {
+    return u64.countOnes(value.hi) + u64.countOnes(value.lo)
+  }
+
+  /// Returns the number of zero bits above the highest one bit of `value`. Returns [`BITS`] for
+  /// zero.
+  pub fn leadingZeros(value: u128) -> u32 {
+    if value.hi != 0 {
+      return u64.leadingZeros(value.hi)
+    }
+    return 64 + u64.leadingZeros(value.lo)
+  }
+
+  /// Returns the number of zero bits below the lowest one bit of `value`. Returns [`BITS`] for zero.
+  pub fn trailingZeros(value: u128) -> u32 {
+    if value.lo != 0 {
+      return u64.trailingZeros(value.lo)
+    }
+    return 64 + u64.trailingZeros(value.hi)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Conversions out of u128
+  // ---------------------------------------------------------------------------
+
+  /// Converts `value` to `u64`. Traps if `value` is outside the `u64` range. Use
+  /// this function when an out-of-range value is a program error.
+  pub fn toU64(value: u128) -> u64 {
+    if value.hi != 0 {
+      return Intrinsic.trap("u128.toU64: the value is outside the u64 range")
+    }
+    return value.lo
+  }
+
+  /// Converts `value` to `u64`, or returns `None` if `value` is outside the `u64`
+  /// range. Use this function when an out-of-range value is input data.
+  pub fn checkedToU64(value: u128) -> Option<u64> {
+    if value.hi != 0 {
+      return Option<u64>.none()
+    }
+    return Option<u64>.some(value.lo)
+  }
+
+  /// Converts `value` to `u64` modulo 2^64. Keeps the low 64 bits, so it never traps.
+  pub fn wrappingToU64(value: u128) -> u64 {
+    return value.lo
+  }
+
+  /// Converts `value` to `u32`. Traps if `value` is outside the `u32` range. Use
+  /// this function when an out-of-range value is a program error.
+  pub fn toU32(value: u128) -> u32 {
+    return u64.toU32(u128.toU64(value))
+  }
+
+  /// Converts `value` to `u32`, or returns `None` if `value` is outside the `u32`
+  /// range. Use this function when an out-of-range value is input data.
+  pub fn checkedToU32(value: u128) -> Option<u32> {
+    if value.hi != 0 {
+      return Option<u32>.none()
+    }
+    return u64.checkedToU32(value.lo)
+  }
+
+  /// Converts `value` to `u32` modulo 2^32. Keeps the low 32 bits, so it never traps.
+  pub fn wrappingToU32(value: u128) -> u32 {
+    return u64.wrappingToU32(value.lo)
+  }
+
+  /// Converts `value` to the nearest `f64` value. Only magnitudes below `2^53` are exactly
+  /// representable, so a larger `u128` rounds.
+  pub fn toF64(value: u128) -> f64 {
+    return u64.toF64(value.hi) * 18446744073709551616.0 + u64.toF64(value.lo)
+  }
+
+  /// Converts `value` to the nearest `f32` value. Only magnitudes below `2^24` are exactly
+  /// representable, so a larger `u128` rounds.
+  pub fn toF32(value: u128) -> f32 {
+    return u64.toF32(value.hi) * 18446744073709551616.0 + u64.toF32(value.lo)
+  }
+}
+
+impl Zero for u128 {
+  fn zero() -> u128 {
+    return u128 { hi: 0, lo: 0 }
+  }
+}
+
+impl One for u128 {
+  fn one() -> u128 {
+    return u128 { hi: 1, lo: 1 }
+  }
+}
+
+impl Copy for u128 {}
+
+impl Order for u128 {
+  compare: u128.compare
+}
+
+impl Add<u128, u128> for u128 {
+  fn add(left: Self, right: u128) -> u128 {
+    return u128.add(left, right)
+  }
+}
+
+impl Subtract<u128, u128> for u128 {
+  fn subtract(left: Self, right: u128) -> u128 {
+    return u128.subtract(left, right)
+  }
+}
+
+impl Multiply<u128, u128> for u128 {
+  fn multiply(left: Self, right: u128) -> u128 {
+    return u128.multiply(left, right)
+  }
+}
+
+impl Divide<u128, u128> for u128 {
+  fn divide(left: Self, right: u128) -> u128 {
+    return u128.divide(left, right)
+  }
+}
+
+impl Remainder<u128, u128> for u128 {
+  fn remainder(left: Self, right: u128) -> u128 {
+    return u128.remainder(left, right)
+  }
+}
+
+impl BitAnd<u128, u128> for u128 {
+  pub fn bitAnd(left: u128, right: u128) -> u128 {
+    return make(u64.bitAnd(left.hi, right.hi), u64.bitAnd(left.lo, right.lo))
+  }
+}
+
+impl BitOr<u128, u128> for u128 {
+  pub fn bitOr(left: u128, right: u128) -> u128 {
+    return u128.bitOr(left, right)
+  }
+}
+
+impl BitXor<u128, u128> for u128 {
+  pub fn bitXor(left: u128, right: u128) -> u128 {
+    return u128.bitXor(left, right)
+  }
+}
+
+impl BitNot<u128> for u128 {
+  pub fn bitNot(self: Self) -> u128 {
+    return u128.bitNot(self)
+  }
+}
+
+impl Not<bool> for u128 {
+  pub fn not(self: Self) -> bool {
+    if self.hi == 0 && self.lo == 0 {
+      return false
+    } else {
+      return true
+    }
+  }
+}
+
+impl Equal for u128 {
+  /// Returns `true` if `left` and `right` are equal.
+  pub fn equals(left: &u128, right: &u128) -> bool {
+    return equals(left, right)
+  }
+}
+
+impl From<u32> for u128 {
+  fn from(value: u32) -> u128 {
+    return u128.fromU32(value)
+  }
+}
+
+impl From<u64> for u128 {
+  fn from(value: u64) -> u128 {
+    return u128.fromU64(value)
+  }
+}
+
+impl From<f32> for u128 {
+  fn from(value: f32) -> u128 {
+    return u128.fromF32(value)
+  }
+}
+
+impl From<f64> for u128 {
+  fn from(value: f64) -> u128 {
+    return u128.fromF64(value)
+  }
+}
+
+impl From<u128> for u32 {
+  fn from(value: u128) -> u32 {
+    return u128.toU32(value)
+  }
+}
+
+impl From<u128> for u64 {
+  fn from(value: u128) -> u64 {
+    return u128.toU64(value)
+  }
+}
+
+impl From<u128> for f32 {
+  fn from(value: u128) -> f32 {
+    return u128.toF32(value)
+  }
+}
+
+impl From<u128> for f64 {
+  fn from(value: u128) -> f64 {
+    return u128.toF64(value)
+  }
+}
+
+impl Into<u128> for u128 {
+  pub fn into<U: From<u128>>(self: Self) -> U {
+    return From<u128>.from(move self)
+  }
+}
+
+fn equals(left: &u128, right: &u128) -> bool {
+  return left.hi == right.hi && left.lo == right.lo
+}
+
+fn compare(left: &u128, right: &u128) -> Ordering {
+  if left.hi < right.hi {
+    return Ordering.Less
+  }
+  if left.hi > right.hi {
+    return Ordering.Greater
+  }
+  if left.lo < right.lo {
+    return Ordering.Less
+  }
+  if left.lo > right.lo {
+    return Ordering.Greater
+  }
+  return Ordering.Equal
+}
+
+fn mulWide(a: u64, b: u64) -> u128 {
+  let a0 = a & MASK32
+  let a1 = u64.shiftRight(a, 32)
+  let b0 = b & MASK32
+  let b1 = u64.shiftRight(b, 32)
+  let p00 = a0 * b0
+  let p01 = a0 * b1
+  let p10 = a1 * b0
+  let p11 = a1 * b1
+  let mid = (u64.shiftRight(p00, 32)) + (p01 & MASK32) + (p10 & MASK32) // < 3 * 2^32
+  let lo = (p00 & MASK32) | u64.shiftRight((mid & MASK32), 32)
+  let hi = p11 + u64.shiftRight(p01, 32) + u64.shiftRight(p10, 32) + u64.shiftRight(mid, 32)
+  return u128 { hi: hi, lo: lo }
+}
+
+fn shl1(self: &u128) -> u128 {
+  return u128 {
+    hi: u64.shiftLeft(self.hi, 1) | u64.shiftRight(self.lo, 63),
+    lo: u64.shiftLeft(self.lo, 1),
+  }
+}
+
+fn bit(self: &u128, mut i: u32) -> u64 {
+  let i = u32.toU64(i)
+  if i >= 64 {
+    return u64.shiftRight(self.hi, (i - 64)) & 1
+  }
+  return u64.shiftRight(self.lo, i) & 1
+}
+
+fn multiplyOverflows(left: u128, right: u128) -> bool {
+  // Both high limbs set: the product is at least 2^128.
+  if left.hi != 0 && right.hi != 0 {
+    return true
+  }
+
+  // A cross term wider than 64 bits lands past bit 127.
+  if u64.multiplyHigh(left.hi, right.lo) != 0 {
+    return true
+  }
+  if u64.multiplyHigh(left.lo, right.hi) != 0 {
+    return true
+  }
+
+  // At most one cross term is nonzero here. Adding it to the high half of lo*lo can still carry out.
+  let cross = u64.wrappingAdd(
+    u64.wrappingMultiply(left.hi, right.lo),
+    u64.wrappingMultiply(left.lo, right.hi),
+  )
+  let high = u64.wrappingAdd(u64.multiplyHigh(left.lo, right.lo), cross)
+  return high < cross
+}
+
+fn bitAt(value: u128, index: u64) -> u64 {
+  if index >= 64 {
+    return u64.bitAnd(u64.shiftRight(value.hi, index - 64), 1)
+  }
+  return u64.bitAnd(u64.shiftRight(value.lo, index), 1)
+}
+
+// Binary long division. Requires `d != 0`.
+fn divRem(n: u128, d: u128) -> DivRem {
+  if n.hi == 0 && d.hi == 0 {
+    return DivRem { quot: make(0, u64.divide(n.lo, d.lo)), rem: make(0, u64.remainder(n.lo, d.lo)) }
+  }
+  let mut quot = MIN
+  let mut rem = MIN
+  let mut i = BITS - u128.leadingZeros(n)
+  while i > 0 {
+    i = i - 1
+
+    // If the top bit of rem is about to shift out, rem is already larger than d.
+    let lost = u64.shiftRight(rem.hi, 63) != 0
+    rem = u128.bitOr(u128.shiftLeft(rem, 1), make(0, bitAt(n, u32.toU64(i))))
+    if lost || !u128.lessThan(rem, d) {
+      rem = u128.wrappingSubtract(rem, d)
+      quot = u128.bitOr(quot, u128.shiftLeft(ONE, i))
+    }
+  }
+  return DivRem { quot: quot, rem: rem }
+}

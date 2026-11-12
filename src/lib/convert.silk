@@ -103,3 +103,100 @@ pub interface Into<This> {
   /// Returns `self` converted into `U`.
   fn into<U: From<This>>(self: Self) -> U
 }
+
+// implementation for built-ins
+impl Into<u8> for u8 {
+  pub fn into<U: From<u8>>(self: Self) -> U {
+    return From<u8>.from(move self)
+  }
+}
+
+impl Into<u16> for u16 {
+  pub fn into<U: From<u16>>(self: Self) -> U {
+    return From<u16>.from(move self)
+  }
+}
+
+impl Into<u32> for u32 {
+  pub fn into<U: From<u32>>(self: Self) -> U {
+    return From<u32>.from(move self)
+  }
+}
+
+impl Into<u64> for u64 {
+  pub fn into<U: From<u64>>(self: Self) -> U {
+    return From<u64>.from(move self)
+  }
+}
+
+impl Into<usize> for usize {
+  pub fn into<U: From<usize>>(self: Self) -> U {
+    return From<usize>.from(move self)
+  }
+}
+
+impl Into<i8> for i8 {
+  pub fn into<U: From<i8>>(self: Self) -> U {
+    return From<i8>.from(move self)
+  }
+}
+
+impl Into<i16> for i16 {
+  pub fn into<U: From<i16>>(self: Self) -> U {
+    return From<i16>.from(move self)
+  }
+}
+
+impl Into<i32> for i32 {
+  pub fn into<U: From<i32>>(self: Self) -> U {
+    return From<i32>.from(move self)
+  }
+}
+
+impl Into<i64> for i64 {
+  pub fn into<U: From<i64>>(self: Self) -> U {
+    return From<i64>.from(move self)
+  }
+}
+
+impl Into<isize> for isize {
+  pub fn into<U: From<isize>>(self: Self) -> U {
+    return From<isize>.from(move self)
+  }
+}
+
+impl Into<f32> for f32 {
+  pub fn into<U: From<f32>>(self: Self) -> U {
+    return From<f32>.from(move self)
+  }
+}
+
+impl Into<f64> for f64 {
+  pub fn into<U: From<f64>>(self: Self) -> U {
+    return From<f64>.from(move self)
+  }
+}
+
+impl<'text> Into<string<'text>> for string<'text> {
+  pub fn into<U: From<string<'text>>>(self: Self) -> U {
+    return From<string<'text>>.from(move self)
+  }
+}
+
+impl Into<char> for char {
+  pub fn into<U: From<char>>(self: Self) -> U {
+    return From<char>.from(move self)
+  }
+}
+
+impl<'a, T> Into<&'a [T]> for &'a [T] {
+  pub fn into<U: From<&'a [T]>>(self: Self) -> U {
+    return From<&'a [T]>.from(move self)
+  }
+}
+
+impl<'a, T> Into<&'a mut [T]> for &'a mut [T] {
+  pub fn into<U: From<&'a mut [T]>>(self: Self) -> U {
+    return From<&'a mut [T]>.from(move self)
+  }
+}

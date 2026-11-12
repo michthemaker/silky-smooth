@@ -1,0 +1,361 @@
+import silk.platform.native.clock { NativeClock }
+import silk.system.system_clock { SystemClock }
+import silk.core.option { Option }
+import silk.num.u64
+import silk.num.i64
+import lib.u128 { u128 }
+import lib.convert { from }
+import silk.num.numeric { Numeric }
+import silk.text.format { Debug, Formatter, Format }
+import silk.io.writer { WriterError, Writer }
+import lib.format { format }
+import silk.core.ownership { Copy }
+
+pub struct Instant {
+  seconds: i64,
+  nanoseconds: i64,
+}
+
+impl Instant {
+  pub fn now() -> Instant {
+    let system_clock_instant = run NativeClock.now(true)
+    return Instant {
+      seconds: SystemClock.seconds(&system_clock_instant),
+      nanoseconds: SystemClock.nanoseconds(&system_clock_instant),
+    }
+  }
+
+  pub fn elapsed(self: &Self) -> Duration {
+    let start = self
+    let end = Instant.now()
+    let delta_nanos = ((end.seconds - start.seconds) * 1_000_000_000)
+      + (end.nanoseconds - start.nanoseconds)
+    return Duration.fromNanos(i64.toU64(delta_nanos))
+  }
+
+  pub fn asDuration(self: &Self) -> Duration {
+    let delta_nanos = (self.seconds * 1_000_000_000) + self.nanoseconds
+    return Duration.fromNanos(i64.toU64(delta_nanos))
+  }
+}
+
+impl Debug for Instant {
+  effect fn debug(self: &Self, formatter: &mut Formatter) -> ()
+    ! WriterError
+    ? &mut Writer {
+    let duration = self.asDuration()
+    if Format.alternate(&formatter) {
+      run Format.format("{}ms", &.(duration.asMillis()))
+      return
+    }
+    run Format.format("{}s", &.(duration.asSecs()))
+  }
+}
+
+impl Copy for Instant {}
+
+/// A span of time made of whole seconds plus a nanosecond fraction.
+///
+/// Nanos are always in `0..1_000_000_000`.
+/// Construction carries excess nanos into seconds.
+pub struct Duration {
+  seconds: u64,
+  nanoseconds: u64,
+}
+
+impl Debug for Duration {
+  effect fn debug(self: &Self, formatter: &mut Formatter) -> ()
+    ! WriterError
+    ? &mut Writer {
+    let duration = self
+    if Format.alternate(&formatter) {
+      run Format.format("{}ms", &.(duration.asMillis()))
+      return
+    }
+    run Format.format("{}s", &.(duration.asSecs()))
+  }
+}
+
+impl Copy for Duration {}
+
+const NANOS_PER_SEC: u64 = 1_000_000_000
+
+const NANOS_PER_MILLI: u64 = 1_000_000
+
+const NANOS_PER_MICRO: u64 = 1_000
+
+const MILLIS_PER_SEC: u64 = 1_000
+
+const MICROS_PER_SEC: u64 = 1_000_000
+
+const SECS_PER_MIN: u64 = 60
+
+const SECS_PER_HOUR: u64 = 3_600
+
+const SECS_PER_DAY: u64 = 86_400
+
+const SECS_PER_WEEK: u64 = 604_800
+
+impl Duration {
+  /// Creates a duration from whole seconds and extra nanoseconds.
+  /// Excess nanos carry into seconds.
+  /// Panics on overflow of the seconds counter.
+  pub fn new(secs: u64, nanos: u64) -> Duration {
+    let extra_secs = nanos / NANOS_PER_SEC
+    let rem_nanos = nanos % NANOS_PER_SEC
+    return Duration { seconds: secs + extra_secs, nanoseconds: rem_nanos }
+  }
+
+  /// Creates a duration of exactly `secs` whole seconds.
+  /// Nanos are set to zero.
+  /// Equivalent to `Duration.new(secs, 0)`.
+  pub fn fromSecs(secs: u64) -> Duration {
+    return Duration { seconds: secs, nanoseconds: 0 }
+  }
+
+  /// Creates a duration from a millisecond count.
+  /// Converts to seconds + remaining nanos.
+  /// Uses exact integer arithmetic.
+  pub fn fromMillis(millis: u64) -> Duration {
+    let secs = millis / MILLIS_PER_SEC
+    let nanos = (millis % MILLIS_PER_SEC) * NANOS_PER_MILLI
+    return Duration { seconds: secs, nanoseconds: nanos }
+  }
+
+  /// Creates a duration from a microsecond count.
+  /// Converts to seconds + remaining nanos.
+  /// Uses exact integer arithmetic.
+  pub fn fromMicros(micros: u64) -> Duration {
+    let secs = micros / MICROS_PER_SEC
+    let nanos = (micros % MICROS_PER_SEC) * NANOS_PER_MICRO
+    return Duration { seconds: secs, nanoseconds: nanos }
+  }
+
+  /// Creates a duration from a nanosecond count that fits in u64.
+  /// Converts to seconds + remaining nanos.
+  pub fn fromNanos(nanos: u64) -> Duration {
+    let secs = nanos / NANOS_PER_SEC
+    let rem = nanos % NANOS_PER_SEC
+    return Duration { seconds: secs, nanoseconds: rem }
+  }
+
+  /// Creates a duration of `weeks` whole weeks.
+  /// Multiplies by seconds-per-week.
+  /// Panics on overflow.
+  pub fn fromWeeks(weeks: u64) -> Duration {
+    return Duration.fromSecs(weeks * SECS_PER_WEEK)
+  }
+
+  /// Creates a duration of `days` whole days.
+  /// Multiplies by seconds-per-day.
+  /// Panics on overflow.
+  pub fn fromDays(days: u64) -> Duration {
+    return Duration.fromSecs(days * SECS_PER_DAY)
+  }
+
+  /// Creates a duration of `hours` whole hours.
+  /// Multiplies by seconds-per-hour.
+  /// Panics on overflow.
+  pub fn fromHours(hours: u64) -> Duration {
+    return Duration.fromSecs(hours * SECS_PER_HOUR)
+  }
+
+  /// Creates a duration of `mins` whole minutes.
+  /// Multiplies by seconds-per-minute.
+  /// Panics on overflow.
+  pub fn fromMins(mins: u64) -> Duration {
+    return Duration.fromSecs(mins * SECS_PER_MIN)
+  }
+
+  /// Returns the absolute difference between two durations.
+  /// Always returns a non-negative duration.
+  /// Order of arguments does not matter.
+  pub fn absDiff(self: &Self, other: &Duration) -> Duration {
+    if self.seconds > other.seconds
+      || (self.seconds == other.seconds && self.nanoseconds >= other.nanoseconds) {
+      return Duration.checkedSub(self, other).unwrapOr(Duration.fromSecs(0))
+    }
+    return Duration.checkedSub(other, self).unwrapOr(Duration.fromSecs(0))
+  }
+
+  // Returns the total duration in whole microseconds.
+  // Saturates at u128::MAX on overflow.
+  // Includes both seconds and subsec parts.
+  pub fn asMicros(self: &Self) -> u64 {
+    let secs_part = from<u128>(self.seconds) * from<u128>(MICROS_PER_SEC)
+    let nanos_part = from<u128>(self.nanoseconds) / from<u128>(NANOS_PER_MICRO)
+    return from<u64>(secs_part + nanos_part)
+  }
+
+  /// Returns the total duration in whole milliseconds.
+  /// Saturates at u128::MAX on overflow.
+  /// Includes both seconds and subsec parts.
+  pub fn asMillis(self: &Self) -> u64 {
+    let secs_part = from<u128>(self.seconds) * from<u128>(MILLIS_PER_SEC)
+    let nanos_part = from<u128>(self.nanoseconds) / from<u128>(NANOS_PER_MILLI)
+    return from<u64>(secs_part + nanos_part)
+  }
+
+  /// Returns the total duration in nanoseconds as u128.
+  /// Never loses precision for any valid Duration.
+  /// Preferred way to get a single integer count.
+  pub fn asNanos(self: &Self) -> u64 {
+    let secs_part = from<u128>(self.seconds) * from<u128>(NANOS_PER_SEC)
+    return from<u64>(secs_part + from<u128>(self.nanoseconds))
+  }
+
+  /// Returns the number of whole seconds in this duration.
+  /// Discards the fractional nanosecond part.
+  pub fn asSecs(self: &Self) -> u64 {
+    return self.seconds
+  }
+
+  /// Adds two durations, returning None on overflow.
+  /// Never panics.
+  /// Prefer this over `+` when overflow must be handled.
+  pub fn checkedAdd(self: &Self, rhs: &Duration) -> Option<Duration> {
+    let nanos_and_carry: [u64; 2] = if self.nanoseconds + rhs.nanoseconds >= NANOS_PER_SEC {
+      [self.nanoseconds + rhs.nanoseconds - NANOS_PER_SEC, Numeric.one<u64>()]
+    } else {
+      [self.nanoseconds + rhs.nanoseconds, Numeric.zero<u64>()]
+    }
+    let nanos = move nanos_and_carry[0]
+    let carry = move nanos_and_carry[1]
+    let secs = u64.checkedAdd(self.seconds, rhs.seconds).map<u64>(
+      |s| u64.checkedAdd(s, carry).unwrapOr(0),
+    )
+    return match secs {
+      Option<u64>.Some { value } => Option<Duration>.some(
+        Duration { seconds: value, nanoseconds: nanos },
+      )
+      Option.None => Option<Duration>.none()
+    }
+  }
+
+  /// Divides this duration by a non-zero u32, returning None on zero divisor.
+  /// Truncates toward zero.
+  /// Returns None only when `rhs == 0`.
+  pub fn checkedDiv(self: &Self, rhs: u32) -> Option<Duration> {
+    if rhs == 0 {
+      return Option<Duration>.none()
+    }
+    let total_nanos = from<u128>(self.asNanos())
+    let q = total_nanos / from<u128>(rhs)
+    let secs = u128.toU64(q / from<u128>(NANOS_PER_SEC))
+    let nanos = u128.toU64(q % from<u128>(NANOS_PER_SEC))
+    return Option<Duration>.some(Duration { seconds: secs, nanoseconds: nanos })
+  }
+
+  /// Multiplies this duration by a u32, returning None on overflow.
+  /// Never panics.
+  /// Prefer this over `*` when overflow must be handled.
+  pub fn checkedMul(self: &Self, rhs: u32) -> Option<Duration> {
+    let total = u128.checkedMultiply(from<u128>(self.asNanos()), from<u128>(rhs))
+    return match total {
+      Option<u128>.Some { value: n } => {
+        if &n > &(from<u128>(u64.MAX) * from<u128>(NANOS_PER_SEC) + from<u128>(NANOS_PER_SEC - 1)) {
+          return Option<Duration>.none()
+        }
+        let secs = u128.toU64(n / from<u128>(NANOS_PER_SEC))
+        let nanos = u128.toU64(n % from<u128>(NANOS_PER_SEC))
+        return Option<Duration>.some(Duration { seconds: secs, nanoseconds: nanos })
+      }
+      Option<u128>.None => Option<Duration>.none()
+    }
+  }
+
+  /// Subtracts `rhs` from `self`, returning None if `rhs > self`.
+  /// Never panics or underflows.
+  /// Prefer this over `-` when underflow must be handled.
+  pub fn checkedSub(self: &Self, rhs: &Duration) -> Option<Duration> {
+    if self.seconds < rhs.seconds
+      || (self.seconds == rhs.seconds && self.nanoseconds < rhs.nanoseconds) {
+      return Option<Duration>.none()
+    }
+    let nanos_and_borrow: [u64; 2] = if self.nanoseconds >= rhs.nanoseconds {
+      [self.nanoseconds - rhs.nanoseconds, Numeric.zero<u64>()]
+    } else {
+      [self.nanoseconds + NANOS_PER_SEC - rhs.nanoseconds, Numeric.one<u64>()]
+    }
+    let nanos = nanos_and_borrow[0]
+    let borrow = nanos_and_borrow[1]
+    return Option<Duration>.some(
+      Duration { seconds: self.seconds - rhs.seconds - borrow, nanoseconds: nanos },
+    )
+  }
+
+  /// Divides `self` by `rhs` and rounds toward +∞.
+  /// Returns 0 when `rhs` is zero duration.
+  /// Useful for “how many buckets do I need”.
+  pub fn divDurationCeil(self: &Self, rhs: &Duration) -> u64 {
+    if rhs.isZero() {
+      return 0
+    }
+    let a = from<u128>(self.asNanos())
+    let b = from<u128>(rhs.asNanos())
+    return u128.toU64((a + (b) - Numeric.one<u128>()) / b)
+  }
+
+  /// Divides `self` by `rhs` and rounds toward −∞ (floor).
+  /// Returns 0 when `rhs` is zero duration.
+  /// Equivalent to integer truncation for positive values.
+  pub fn divDurationFloor(self: &Self, rhs: &Duration) -> u64 {
+    if rhs.isZero() {
+      return 0
+    }
+    return self.asNanos() / rhs.asNanos()
+  }
+
+  /// Returns true when both seconds and nanos are zero.
+  /// Equivalent to `self == Duration.from_secs(0)`.
+  /// Cheap to compute.
+  pub fn isZero(self: &Self) -> bool {
+    return self.seconds == 0 && self.nanoseconds == 0
+  }
+
+  /// Adds two durations, saturating at `Duration::MAX` on overflow.
+  /// Never panics.
+  /// Useful when a hard upper bound is preferred over failure.
+  pub fn saturatingAdd(self: &Self, rhs: &Duration) -> Duration {
+    return self.checkedAdd(rhs).unwrapOr(
+      Duration { seconds: u64.MAX, nanoseconds: NANOS_PER_SEC - 1 },
+    )
+  }
+
+  /// Multiplies by a u32, saturating at `Duration::MAX` on overflow.
+  /// Never panics.
+  /// Useful when a hard upper bound is preferred over failure.
+  pub fn saturatingMul(self: &Self, rhs: u32) -> Duration {
+    return self.checkedMul(rhs).unwrapOr(
+      Duration { seconds: u64.MAX, nanoseconds: NANOS_PER_SEC - 1 },
+    )
+  }
+
+  /// Subtracts `rhs`, saturating at zero on underflow.
+  /// Never panics.
+  /// Useful when a hard lower bound of zero is preferred.
+  pub fn saturatingSub(self: &Self, rhs: &Duration) -> Duration {
+    return self.checkedSub(rhs).unwrapOr(Duration.fromSecs(0))
+  }
+
+  /// Returns the fractional part in whole microseconds.
+  /// Always in `0..1_000_000`.
+  /// Does not include whole seconds.
+  pub fn subsecMicros(self: &Self) -> u32 {
+    return u64.toU32(self.nanoseconds / NANOS_PER_MICRO)
+  }
+
+  /// Returns the fractional part in whole milliseconds.
+  /// Always in `0..1_000`.
+  /// Does not include whole seconds.
+  pub fn subsecMillis(self: &Self) -> u32 {
+    return u64.toU32(self.nanoseconds / NANOS_PER_MILLI)
+  }
+
+  /// Returns the fractional part in nanoseconds.
+  /// Always in `0..1_000_000_000`.
+  /// Does not include whole seconds.
+  pub fn subsecNanos(self: &Self) -> u32 {
+    return u64.toU32(self.nanoseconds)
+  }
+}
