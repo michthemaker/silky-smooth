@@ -8,11 +8,12 @@ import lib.testing
 import silk.core.effect { Effect }
 import silk.system.filesystem_native { OsFileSystem }
 import silk.system.filesystem { FileError, Path, FileSystem }
-import lib.iter { range, Step }
 import lib.capture_writer { CaptureWriter }
 import silk.text.format { Format, Debug, Formatter }
 import silk.io.writer { WriterError, Writer }
 import silk.collections.list { List }
+import lib.time { Instant }
+import lib.println { println }
 
 pub const hold: i32 = 0
 
@@ -36,33 +37,34 @@ pub effect fn writeP3(width: u32, height: u32, pixel_grid: &[Pixel]) -> ()
     fail PPMWriteError { message: "Pixel count exceeds pixel_grid length" }
   }
 
+  let instant = Instant.now()
   let mut capture_writer = run CaptureWriter.makeWithCapacity(pixel_grid.length)
+  run println("{:#x}", &.(b"9"[0]))
+  run println("Capture writer allocated in: {:#?}μs", &.(instant.elapsed().asMicros()))
+
   run Format.format("P3\n{0} {1}\n255\n", &.(width, height))
     |> Effect.provideMut(&mut capture_writer)
 
   let mut formatter = Format.makeDefault()
-  let w = u32.toUsize(width)
-  let h = u32.toUsize(height)
 
-  let mut rows = range(0, h)
-  while let Step.Index { i: y } = rows.next() {
-    let mut cols = range(0, w)
-    while let Step.Index { i: x } = cols.next() {
-      // 0 * 2 = 0 + 0 = 0
-      // 0 * 2 = 0 + 1 = 1
-      // 1 * 2 = 2 + 0 = 2
-      // 1 * 2 = 2 + 1 = 3
-      let pixel = pixel_grid[y * w + x]
-      run Format.format("{0} {1} {2}", &.(pixel.0, pixel.1, pixel.2))
-        |> Effect.provideMut(&mut capture_writer)
-      if (x + 1) != w {
-        run Format.writeText(&mut formatter, "  ") |> Effect.provideMut(&mut capture_writer)
-      }
+  let len = pixel_grid.length
+  let width: usize = u32.toUsize(width)
+  let mut index: usize = 0
+
+  while index < len {
+    let pixel = pixel_grid[index]
+    run Format.format("{0} {1} {2}", &.(pixel.0, pixel.1, pixel.2))
+      |> Effect.provideMut(&mut capture_writer)
+    index = index + 1
+    if index % width == 0 {
+      run Format.writeText(&mut formatter, "\n") |> Effect.provideMut(&mut capture_writer)
+    } else {
+      run Format.writeText(&mut formatter, "  ") |> Effect.provideMut(&mut capture_writer)
     }
-    run Format.writeText(&mut formatter, "\n") |> Effect.provideMut(&mut capture_writer)
   }
+
   let project = run Path.make("/home/mich/Projects/silky_smooth/out")
-  let ppm_file = run Path.join(&project, "out.ppm")
+  let ppm_file = run Path.join(&project, "out.txt")
 
   run FileSystem.writeFileWithParents(&ppm_file, capture_writer.toBytes().asSlice())
 }
