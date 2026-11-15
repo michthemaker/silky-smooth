@@ -1,4 +1,4 @@
-import buffer.frame_buffer { PPMWriteError, writeP3 }
+import buffer.frame_buffer { PPMWriteError, writeP7 }
 import silk.io.logger { LogError }
 import silk.testing.testing { AssertionError }
 import silk.system.filesystem { FileError }
@@ -26,7 +26,7 @@ pub effect fn main() -> ()
   run pixels.appendRepeated(Pixel.opaque(255, 0, 0), 3840 * 2160)
     |> Effect.provideMut(&mut allocator)
 
-  run writeP3(3840, 2160, pixels.asSlice())
+  run writeP7(3840, 2160, pixels.asSlice())
     |> Effect.provideMut(&mut files)
     |> Effect.provideMut(&mut allocator)
 }

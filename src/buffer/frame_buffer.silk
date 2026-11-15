@@ -8,12 +8,12 @@ import lib.testing
 import silk.core.effect { Effect }
 import silk.system.filesystem_native { OsFileSystem }
 import silk.system.filesystem { FileError, Path, FileSystem }
-import lib.capture_writer { CaptureWriter }
 import silk.text.format { Format, Debug, Formatter }
 import silk.io.writer { WriterError, Writer }
 import silk.collections.list { List }
 import lib.time { Instant }
 import lib.println { println }
+import lib.format { format }
 
 pub const hold: i32 = 0
 
@@ -30,43 +30,24 @@ impl Debug for PPMWriteError {
   }
 }
 
-pub effect fn writeP3(width: u32, height: u32, pixel_grid: &[Pixel]) -> ()
+pub effect fn writeP7(width: u32, height: u32, pixel_grid: &[Pixel]) -> ()
   ! FileError | OutOfMemoryError | PPMWriteError | LogError | WriterError
   ? &mut Allocator | &mut FileSystem {
   if u32.checkedSubtract(usize.toU32(pixel_grid.length), width * height).isNone() {
     fail PPMWriteError { message: "Pixel count exceeds pixel_grid length" }
   }
-
-  let instant = Instant.now()
-  let mut capture_writer = run CaptureWriter.makeWithCapacity(pixel_grid.length)
-  run println("{:#x}", &.(b"9"[0]))
-  run println("Capture writer allocated in: {:#?}μs", &.(instant.elapsed().asMicros()))
-
-  run Format.format("P3\n{0} {1}\n255\n", &.(width, height))
-    |> Effect.provideMut(&mut capture_writer)
-
-  let mut formatter = Format.makeDefault()
-
-  let len = pixel_grid.length
-  let width: usize = u32.toUsize(width)
-  let mut index: usize = 0
-
-  while index < len {
-    let pixel = pixel_grid[index]
-    run Format.format("{0} {1} {2}", &.(pixel.0, pixel.1, pixel.2))
-      |> Effect.provideMut(&mut capture_writer)
-    index = index + 1
-    if index % width == 0 {
-      run Format.writeText(&mut formatter, "\n") |> Effect.provideMut(&mut capture_writer)
-    } else {
-      run Format.writeText(&mut formatter, "  ") |> Effect.provideMut(&mut capture_writer)
-    }
-  }
+  let header = run format(
+    "P7\nWIDTH {0}\nHEIGHT {1}\nDEPTH {2}\nMAXVAL {3}\nTUPLTYPE {4}\nENDHDR\n",
+    &.(width, height, 4, 255, "RGB_ALPHA"),
+  )
+  let mut file_bytes = header.intoBytes()
+  run file_bytes.append(&pixel_grid[0].toBytes())
 
   let project = run Path.make("/home/mich/Projects/silky_smooth/out")
-  let ppm_file = run Path.join(&project, "out.txt")
-
-  run FileSystem.writeFileWithParents(&ppm_file, capture_writer.toBytes().asSlice())
+  let ppm_file = run Path.join(&project, "out.pam")
+  let instant = Instant.now()
+  run FileSystem.writeFileWithParents(&ppm_file, file_bytes.asSlice())
+  run println("Wrote p7 pam header in: {:?}μs", &.(instant.elapsed().asMicros()))
 }
 
 test effect fn testWriteP3() -> ()
@@ -83,7 +64,7 @@ test effect fn testWriteP3() -> ()
   run pixels.appendRepeated(Pixel.opaque(255, 0, 0), 3840 * 2160)
     |> Effect.provideMut(&mut allocator)
 
-  run writeP3(3840, 2160, pixels.asSlice())
+  run writeP7(3840, 2160, pixels.asSlice())
     |> Effect.provideMut(&mut files)
     |> Effect.provideMut(&mut allocator)
   let project = run Path.make("/home/mich/Projects/silky_smooth/out")

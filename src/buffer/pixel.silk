@@ -119,6 +119,10 @@ impl Pixel {
     return u32.add(u32.add(r, g), u32.add(b, a))
   }
 
+  pub fn toBytes(self: &Self) -> [u8; 4] {
+    return [self.0, self.1, self.2, self.3]
+  }
+
   /// Returns this pixel with each color channel multiplied by alpha, rounded to nearest.
   pub fn toPremultiplied(self: &Self) -> PremultipliedPixel {
     return premultiplyFromRaw(self.0, self.1, self.2, self.3)
