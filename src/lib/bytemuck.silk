@@ -1,0 +1,13 @@
+import silk.core.ownership { Copy }
+import silk.mem.layout { Layout }
+
+/// Cast `&[A]` into `&[B]`.
+///
+/// ## Panics
+///
+/// This is [`try_cast_slice`] but will panic on error.
+pub fn castSlice<'a, A: Copy, B: Copy>(a: &'a [A]) -> () {
+  let a_bytes = Layout.of<A>().bytes
+  let b_bytes = Layout.of<B>().bytes
+  let total = a.length * a_bytes
+}
