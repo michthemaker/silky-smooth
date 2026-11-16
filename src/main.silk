@@ -7,10 +7,12 @@ import silk.io.writer { WriterError }
 import silk.core.effect { Effect }
 import silk.system.filesystem_native { OsFileSystem }
 import silk.collections.list { List }
-import buffer.pixel { Pixel, PremultipliedPixel }
+import buffer.pixel { Pixel }
 import lib.bytemuck
 import lib.println { println }
 import lib.time { Instant }
+import lib.bytemuck.lib { PodCastError }
+import silk.system.host_input { HostInput }
 
 pub effect fn main() -> ()
   ! LogError
@@ -19,23 +21,25 @@ pub effect fn main() -> ()
     | OutOfMemoryError
     | LogError
     | PPMWriteError
-    | WriterError {
+    | PodCastError
+    | WriterError
+  ? &mut HostInput {
   let mut allocator = Allocator.systemAllocatorProvider()
   let mut files = run OsFileSystem.make("/") |> Effect.provideMut(&mut allocator)
 
-  let mut pixels = run List<Pixel>.makeWithCapacity(3840 * 2160)
-    |> Effect.provideMut(&mut allocator)
+  let mut pixels = run List<Pixel>.makeWithCapacity(3) |> Effect.provideMut(&mut allocator)
 
-  run pixels.appendRepeated(Pixel.opaque(255, 67, 0), 3840 * 2160)
-    |> Effect.provideMut(&mut allocator)
+  run pixels.appendRepeated(Pixel.opaque(255, 67, 0), 3) |> Effect.provideMut(&mut allocator)
 
   drop writeP7(3840, 2160, pixels.asSlice())
     |> Effect.provideMut(&mut files)
     |> Effect.provideMut(&mut allocator)
 
   let instant = Instant.now()
-  let pixel_bytes = bytemuck.castSlice<u8>(pixels.asSlice())
+  let sje: [u8; 3] = [9, 9, 4]
+  let pixel_bytes = run bytemuck.castSlice<u16>(&sje)
   run println("{:?}μs", &.(instant.elapsed().asMicros()))
-  run println("\npixel_length: {} \nu8 length: {}", &.(pixels.length(), pixel_bytes.length))
+  run println("pixel_length: {} \nu8 length: {}", &.(sje.length, pixel_bytes.length))
+  run println("pixel: {}", &.(pixel_bytes[0]))
   drop pixel_bytes
 }

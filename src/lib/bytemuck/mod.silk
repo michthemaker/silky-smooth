@@ -1,0 +1,114 @@
+import silk.core.ownership { Copy }
+import silk.mem.layout { Layout }
+import silk.mem.pointer { Pointer }
+import silk.num.usize
+pub import lib.bytemuck.lib { PodCastError }
+
+/// Reinterprets `&'a [A]` as `&'a [B]` over the same bytes; the output length is
+/// `a.length * sizeOf<A>() / sizeOf<B>()`.
+///
+/// # Errors
+///
+/// - `PodCastError.TargetAlignmentGreaterAndInputNotAligned` if `alignOf<B>() > alignOf<A>()`
+///   and `a` is not aligned to `alignOf<B>()`. Applies even to an empty slice.
+/// - `PodCastError.OutputSliceWouldHaveSlop` if the byte count is not a whole number of `B`.
+///
+/// # Gotchas
+///
+/// `A` only guarantees `alignOf<A>()`, so a stack `[u8; N]` may not be `B`-aligned.
+pub effect fn castSlice<'a, B: Copy, A: Copy>(a: &'a [A]) -> &'a [B]
+  ! PodCastError {
+  let input_bytes = sizeOf<A>() * a.length
+  let input_as_ptr = Pointer.fromSlice(a)
+
+  if alignOf<B>() > alignOf<A>() && !(isAlignedTo_Many(input_as_ptr, alignOf<B>())) {
+    fail PodCastError.TargetAlignmentGreaterAndInputNotAligned
+  } else if sizeOf<A>() == sizeOf<B>() {
+    unsafe {
+      let ptr = Intrinsic.pointerRequalify<?[*]const A, [*]const A>(input_as_ptr)
+      let reinterpreted_ptr = Intrinsic.pointerReinterpret<[*]const A, [*]const B>(ptr)
+      return Intrinsic.pointerBorrowMany<A, B>(a, reinterpreted_ptr, a.length)
+    }
+  } else if (sizeOf<B>() != 0 && input_bytes % sizeOf<B>() == 0)
+    || (sizeOf<B>() == 0 && input_bytes == 0) {
+    let new_len = if sizeOf<B>() != 0 {
+      input_bytes / sizeOf<B>()
+    } else {
+      0
+    }
+    unsafe {
+      let ptr = Intrinsic.pointerRequalify<?[*]const A, [*]const A>(input_as_ptr)
+      let reinterpreted_ptr = Intrinsic.pointerReinterpret<[*]const A, [*]const B>(ptr)
+      return Intrinsic.pointerBorrowMany<A, B>(a, reinterpreted_ptr, new_len)
+    }
+  } else {
+    fail PodCastError.OutputSliceWouldHaveSlop
+  }
+}
+
+/// Reinterprets `&'a mut [A]` as `&'a mut [B]` over the same bytes; the output length is
+/// `a.length * sizeOf<A>() / sizeOf<B>()`.
+///
+/// # Errors
+///
+/// - `PodCastError.TargetAlignmentGreaterAndInputNotAligned` if `alignOf<B>() > alignOf<A>()`
+///   and `a` is not aligned to `alignOf<B>()`. Applies even to an empty slice.
+/// - `PodCastError.OutputSliceWouldHaveSlop` if the byte count is not a whole number of `B`.
+///
+/// # Gotchas
+///
+/// `A` only guarantees `alignOf<A>()`, so a stack `[u8; N]` may not be `B`-aligned.
+pub effect fn castMutSlice<'a, B: Copy, A: Copy>(a: &'a mut [A]) -> &'a mut [B]
+  ! PodCastError {
+  let input_bytes = sizeOf<A>() * a.length
+  let input_as_ptr = Pointer.fromMutSlice(&mut a)
+
+  if alignOf<B>() > alignOf<A>() && !(isAlignedTo_Many(input_as_ptr, alignOf<B>())) {
+    fail PodCastError.TargetAlignmentGreaterAndInputNotAligned
+  } else if sizeOf<A>() == sizeOf<B>() {
+    unsafe {
+      let ptr = Intrinsic.pointerRequalify<?[*]mut A, [*]mut A>(input_as_ptr)
+      let reinterpreted_ptr = Intrinsic.pointerReinterpret<[*]mut A, [*]mut B>(ptr)
+      return Intrinsic.pointerBorrowManyMut<A, B>(a, reinterpreted_ptr, a.length)
+    }
+  } else if (sizeOf<B>() != 0 && input_bytes % sizeOf<B>() == 0)
+    || (sizeOf<B>() == 0 && input_bytes == 0) {
+    let new_len = if sizeOf<B>() != 0 {
+      input_bytes / sizeOf<B>()
+    } else {
+      0
+    }
+    unsafe {
+      let ptr = Intrinsic.pointerRequalify<?[*]mut A, [*]mut A>(input_as_ptr)
+      let reinterpreted_ptr = Intrinsic.pointerReinterpret<[*]mut A, [*]mut B>(ptr)
+      return Intrinsic.pointerBorrowManyMut<A, B>(a, reinterpreted_ptr, new_len)
+    }
+  } else {
+    fail PodCastError.OutputSliceWouldHaveSlop
+  }
+}
+
+pub fn isAlignedTo<T>(ptr: ?*const T, align: usize) -> bool {
+  if align == 0 || (align & (align - 1)) != 0 {
+    Intrinsic.trap("alignment must be a non-zero power of two")
+  }
+
+  return Pointer.address<T>(ptr) % align == 0
+}
+
+/// `isAlignedTo` but for slice types
+pub fn isAlignedTo_Many<T>(ptr: ?[*]const T, align: usize) -> bool {
+  if align == 0 || (align & (align - 1)) != 0 {
+    Intrinsic.trap("alignment must be a non-zero power of two")
+  }
+
+  return Pointer.addressMany<T>(ptr) % align == 0
+}
+
+pub fn sizeOf<T>() -> usize {
+  return Layout.of<T>().bytes
+}
+
+pub fn alignOf<T>() -> usize {
+  return Layout.of<T>().alignment
+}

@@ -1,0 +1,41 @@
+import silk.text.format { Debug, Formatter, Format }
+import silk.io.writer { WriterError, Writer }
+
+pub enum PodCastError {
+  /// If the element size of a slice changes, then the output slice changes
+  /// length accordingly. If the output slice wouldn't be a whole number of
+  /// elements, then the conversion fails.
+  OutputSliceWouldHaveSlop,
+  /// When casting an individual `T`, `&T`, or `&mut T` value the
+  /// source size and destination size must be an exact match.
+  SizeMismatch,
+  /// For this type of cast the alignments must be exactly the same and they
+  /// were not so now you're sad.
+  ///
+  /// This error is generated **only** by operations that cast allocated types
+  /// (such as `Box` and `Vec`), because in that case the alignment must stay
+  /// exact.
+  AlignmentMismatch,
+  /// You tried to cast a reference into a reference to a type with a higher
+  /// alignment requirement but the input reference wasn't aligned.
+  TargetAlignmentGreaterAndInputNotAligned,
+}
+
+impl Debug for PodCastError {
+  effect fn debug(self: &Self, formatter: &mut Formatter) -> ()
+    ! WriterError
+    ? &mut Writer {
+    return match &self.* {
+      PodCastError.TargetAlignmentGreaterAndInputNotAligned => run Format.write(
+        &mut formatter,
+        b"TargetAlignmentGreaterAndInputNotAligned",
+      )
+      PodCastError.OutputSliceWouldHaveSlop => run Format.write(
+        &mut formatter,
+        b"OutputSliceWouldHaveSlop",
+      )
+      PodCastError.SizeMismatch => run Format.write(&mut formatter, b"SizeMismatch")
+      PodCastError.AlignmentMismatch => run Format.write(&mut formatter, b"AlignmentMismatch")
+    }
+  }
+}

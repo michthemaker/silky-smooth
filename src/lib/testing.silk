@@ -133,7 +133,7 @@ pub effect fn expectEffectToFailWith<'message, S, A, E>(computation: once Effect
   ! AssertionError<'message> where S in E {
   let narrowed = Effect.catch<S>(
     move computation,
-    effect fn(error: S) -> Caught {
+    effect |error: S| -> Caught {
       return Caught {}
     },
   )
