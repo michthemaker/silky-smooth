@@ -7,7 +7,10 @@ import silk.io.writer { WriterError }
 import silk.core.effect { Effect }
 import silk.system.filesystem_native { OsFileSystem }
 import silk.collections.list { List }
-import buffer.pixel { Pixel }
+import buffer.pixel { Pixel, PremultipliedPixel }
+import lib.bytemuck
+import lib.println { println }
+import lib.time { Instant }
 
 pub effect fn main() -> ()
   ! LogError
@@ -23,10 +26,16 @@ pub effect fn main() -> ()
   let mut pixels = run List<Pixel>.makeWithCapacity(3840 * 2160)
     |> Effect.provideMut(&mut allocator)
 
-  run pixels.appendRepeated(Pixel.opaque(255, 0, 0), 3840 * 2160)
+  run pixels.appendRepeated(Pixel.opaque(255, 67, 0), 3840 * 2160)
     |> Effect.provideMut(&mut allocator)
 
-  run writeP7(3840, 2160, pixels.asSlice())
+  drop writeP7(3840, 2160, pixels.asSlice())
     |> Effect.provideMut(&mut files)
     |> Effect.provideMut(&mut allocator)
+
+  let instant = Instant.now()
+  let pixel_bytes = bytemuck.castSlice<u8>(pixels.asSlice())
+  run println("{:?}μs", &.(instant.elapsed().asMicros()))
+  run println("\npixel_length: {} \nu8 length: {}", &.(pixels.length(), pixel_bytes.length))
+  drop pixel_bytes
 }
