@@ -14,6 +14,8 @@ import silk.collections.list { List }
 import lib.time { Instant }
 import lib.println { println }
 import lib.format { format }
+import lib.bytemuck
+import silk.platform.native.filesystem { NativeFileSystem }
 
 pub const hold: i32 = 0
 
@@ -31,23 +33,50 @@ impl Debug for PPMWriteError {
 }
 
 pub effect fn writeP7(width: u32, height: u32, pixel_grid: &[Pixel]) -> ()
-  ! FileError | OutOfMemoryError | PPMWriteError | LogError | WriterError
+  ! FileError | OutOfMemoryError | PPMWriteError | LogError | WriterError | bytemuck.PodCastError
   ? &mut Allocator | &mut FileSystem {
   if u32.checkedSubtract(usize.toU32(pixel_grid.length), width * height).isNone() {
     fail PPMWriteError { message: "Pixel count exceeds pixel_grid length" }
   }
-  let header = run format(
+
+  let formatted_bytes = (run format(
     "P7\nWIDTH {0}\nHEIGHT {1}\nDEPTH {2}\nMAXVAL {3}\nTUPLTYPE {4}\nENDHDR\n",
     &.(width, height, 4, 255, "RGB_ALPHA"),
-  )
-  let mut file_bytes = header.intoBytes()
-  run file_bytes.append(&pixel_grid[0].toBytes())
+  )).intoBytes()
+  let header_bytes = formatted_bytes.asSlice()
+  let pixel_bytes = run bytemuck.castSlice<u8>(pixel_grid)
 
   let project = run Path.make("/home/mich/Projects/silky_smooth/out")
-  let ppm_file = run Path.join(&project, "out.pam")
-  let instant = Instant.now()
-  run FileSystem.writeFileWithParents(&ppm_file, file_bytes.asSlice())
-  run println("Wrote p7 pam header in: {:?}μs", &.(instant.elapsed().asMicros()))
+  let pam_file = run Path.join(&project, "out.pam")
+
+  run FileSystem.createDirectoriesRecursively(&project)
+  let mut file_handle = run NativeFileSystem.openFile(
+    b"/",
+    pam_file.rawBytes(),
+    true,
+    FileSystem.operationCode(FileSystem.createFileOperation())
+      | FileSystem.operationCode(FileSystem.writeFileOperation()),
+  )
+
+  let mut instant = Instant.now()
+
+  // write the header
+  run NativeFileSystem.writeFile(
+    &mut file_handle,
+    header_bytes,
+    FileSystem.operationCode(FileSystem.writeFileOperation()),
+  )
+  run println("wrote header in: {:?}ms", &.(instant.elapsed().asMillis()))
+  instant = Instant.now()
+
+  // write the samples
+  run NativeFileSystem.writeFile(
+    &mut file_handle,
+    pixel_bytes,
+    FileSystem.operationCode(FileSystem.writeFileOperation()),
+  )
+  run println("wrote samples in: {:?}ms", &.(instant.elapsed().asMillis()))
+  run NativeFileSystem.closeFile(move file_handle, FileSystem.writeFileOperation())
 }
 
 test effect fn testWriteP3() -> ()
@@ -56,6 +85,7 @@ test effect fn testWriteP3() -> ()
     | OutOfMemoryError
     | LogError
     | PPMWriteError
+    | bytemuck.PodCastError
     | WriterError {
   let mut allocator = Allocator.systemAllocatorProvider()
   let mut files = run OsFileSystem.make("/") |> Effect.provideMut(&mut allocator)
