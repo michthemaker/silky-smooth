@@ -1,3 +1,11 @@
-pub effect fn main() -> () {
+import silky_smooth.lib.std { Default, println as _ }
+import silky_smooth.buffer.pixel { Pixel }
+import silk.io.logger { LogError }
+
+struct Me {}
+
+pub effect fn main() -> ()
+  ! LogError {
+  let _pixel = Default.default<Pixel>()
   return ()
 }

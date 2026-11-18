@@ -17,10 +17,8 @@ import lib.std.format { format }
 import lib.bytemuck
 import silk.platform.native.filesystem { NativeFileSystem }
 
-pub const hold: i32 = 0
-
 pub struct PPMWriteError {
-  pub message: string<'static>
+  message: string<'static>
 }
 
 impl Debug for PPMWriteError {

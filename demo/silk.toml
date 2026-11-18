@@ -3,3 +3,6 @@ name = "silky_smooth_demo"
 version = "0.1.0"
 silk-version = "0.1.0-dev.86+c9d19330761b"
 description = "Graphics Library for Silk Demo"
+
+[dependencies]
+silky_smooth = { path = "../silky_smooth", package = "silky_smooth" }
