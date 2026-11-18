@@ -1,6 +1,6 @@
 import silk.io.writer { Writer, WriterError }
 import silk.collections.list { List }
-import lib.default { Make }
+import lib.std.default { Make }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.core.effect { Effect }
 
@@ -8,7 +8,7 @@ import silk.core.effect { Effect }
 ///
 /// Examples
 /// ```silk
-/// import lib.default { Default }
+/// import lib.std.default { Default }
 ///
 /// let mut capture_writer = Default.default<CaptureWriter>()
 /// let mut capture_writer = CaptureWriter.default()

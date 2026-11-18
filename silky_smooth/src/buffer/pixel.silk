@@ -9,12 +9,12 @@ import silk.core.equal { Equal }
 import silk.io.logger { LogError }
 import silk.text.string { String }
 import silk.core.bool
-import lib.testing { AssertionError }
-import lib.testing
+import lib.std.testing { AssertionError }
+import lib.std.testing
 import silk.core.option { Option }
 import silk.core.result { Result }
-import lib.default { Make, Default }
-import lib.convert { Into, From, from }
+import lib.std.default { Make, Default }
+import lib.std.convert { Into, From, from }
 
 /// Unsigned Normalized 8-bit integer
 ///

@@ -2,12 +2,12 @@ import silk.system.system_clock { SystemClock }
 import silk.core.option { Option }
 import silk.num.u64
 import silk.num.i64
-import lib.u128 { u128 }
-import lib.convert { from }
+import lib.std.u128 { u128 }
+import lib.std.convert { from }
 import silk.num.numeric { Numeric }
 import silk.text.format { Debug, Formatter, Format, Display }
 import silk.io.writer { WriterError, Writer }
-import lib.format { format }
+import lib.std.format { format }
 import silk.core.ownership { Copy }
 import silk.platform.native.clock { NativeClock }
 

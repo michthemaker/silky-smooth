@@ -1,11 +1,11 @@
 import silk.io.writer { WriterError }
 import lib.capture_writer { CaptureWriter }
-import lib.default { Default }
+import lib.std.default { Default }
 import silk.core.effect { Effect }
 import silk.text.format { Format }
 import silk.collections.list { List }
-import lib.testing { AssertionError }
-import lib.testing
+import lib.std.testing { AssertionError }
+import lib.std.testing
 import silk.text.string { String }
 import silk.collections.bytes { Bytes }
 import silk.mem.allocator { Allocator }

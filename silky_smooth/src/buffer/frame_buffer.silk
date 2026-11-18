@@ -1,19 +1,19 @@
 import buffer.pixel { Pixel }
-import lib.testing { AssertionError }
+import lib.std.testing { AssertionError }
 import silk.io.logger { LogError }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.num.u32
 import silk.num.usize
-import lib.testing
+import lib.std.testing
 import silk.core.effect { Effect }
 import silk.system.filesystem_native { OsFileSystem }
 import silk.system.filesystem { FileError, Path, FileSystem }
 import silk.text.format { Format, Debug, Formatter }
 import silk.io.writer { WriterError, Writer }
 import silk.collections.list { List }
-import lib.time { Instant }
-import lib.println { println }
-import lib.format { format }
+import lib.std.time { Instant }
+import lib.std.println { println }
+import lib.std.format { format }
 import lib.bytemuck
 import silk.platform.native.filesystem { NativeFileSystem }
 

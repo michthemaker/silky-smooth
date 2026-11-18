@@ -2,7 +2,7 @@ import silk.core.ownership { Copy }
 import silk.mem.layout { Layout }
 import silk.mem.pointer { Pointer }
 import silk.num.usize
-pub import lib.bytemuck.lib { PodCastError }
+import lib.bytemuck.pod { PodCastError }
 
 /// Reinterprets `&'a [A]` as `&'a [B]` over the same bytes; the output length is
 /// `a.length * sizeOf<A>() / sizeOf<B>()`.

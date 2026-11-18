@@ -20,7 +20,7 @@ import silk.num.u32
 import silk.num.u64
 import silk.num.f64
 import silk.num.f32
-import lib.convert { Into, From }
+import lib.std.convert { Into, From }
 import silk.core.ops {
   Add,
   Subtract,

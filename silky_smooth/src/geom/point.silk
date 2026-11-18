@@ -1,7 +1,7 @@
 import silk.core.ownership { Copy }
 import silk.text.format { Debug, Formatter, Format }
 import silk.io.writer { WriterError, Writer }
-import lib.default { Make }
+import lib.std.default { Make }
 
 /// A 2-D point. Cheap to copy/move
 pub struct Point {
