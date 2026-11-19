@@ -1,4 +1,5 @@
 /build/
+**/*/build/
 shell.sh
 FEATURE.md
 /out/
