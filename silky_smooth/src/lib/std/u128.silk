@@ -13,6 +13,8 @@
 //!
 //! @category Numbers
 
+// Implement Display and Debug for it
+
 import silk.core.ownership { Copy }
 import silk.core.option { Option }
 import silk.core.order { Order, Ordering }
@@ -39,8 +41,8 @@ import silk.num.numeric { Zero, One }
 
 /// A 128-bit unsigned integer equal to `hi * 2^64 + lo`.
 pub struct u128 {
-  pub hi: u64,
-  pub lo: u64,
+  hi: u64,
+  lo: u64,
 }
 
 const MASK32: u64 = 0xFFFF_FFFF

@@ -1,11 +1,19 @@
-import silky_smooth.lib.std { Default, println as _ }
-import silky_smooth.buffer.pixel { Pixel }
+import silky_smooth.lib.std { println }
 import silk.io.logger { LogError }
-
-struct Me {}
+import silk.text.string { String }
+import silk.num.usize
+import silk.num.u8
 
 pub effect fn main() -> ()
   ! LogError {
-  let _pixel = Default.default<Pixel>()
+  let bytes = String.utf8Bytes("")
+  let mut result: usize = 0
+
+  let mut index: usize = 0
+  while index < bytes.length {
+    result = (usize.shiftLeft(result, 8)) | u8.toUsize(bytes[index])
+    index = index + 1
+  }
+  run println("{:#x}", &.(result))
   return ()
 }

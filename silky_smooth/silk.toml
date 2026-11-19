@@ -3,9 +3,7 @@ name = "silky_smooth"
 version = "0.1.0"
 silk-version = "0.1.0-dev.86+c9d19330761b"
 kind = "library"
-exports = ["buffer.pixel", "buffer.frame_buffer", "geom.point",
-	"lib.bytemuck", "lib.std", "lib.std.testing", "lib.std.u128", "lib.capture_writer"
-]
+exports = ["buffer.pixel", "buffer.frame_buffer", "geom.point", "lib.bytemuck", "lib.std", "lib.std.testing", "lib.std.u128", "lib.capture_writer"]
 description = "Graphics Library for Silk"
 license = "MIT"
 readme = "README.md"
