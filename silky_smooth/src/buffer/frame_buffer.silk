@@ -1,6 +1,5 @@
 import buffer.pixel { Pixel }
 import lib.std.testing { AssertionError }
-import silk.io.logger { LogError }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.num.u32
 import silk.num.usize
@@ -31,7 +30,7 @@ impl Debug for PPMWriteError {
 }
 
 pub effect fn writeP7(width: u32, height: u32, pixel_grid: &[Pixel]) -> ()
-  ! FileError | OutOfMemoryError | PPMWriteError | LogError | WriterError | bytemuck.PodCastError
+  ! FileError | OutOfMemoryError | PPMWriteError | WriterError | bytemuck.PodCastError
   ? &mut Allocator | &mut FileSystem {
   if u32.checkedSubtract(usize.toU32(pixel_grid.length), width * height).isNone() {
     fail PPMWriteError { message: "Pixel count exceeds pixel_grid length" }
@@ -81,7 +80,6 @@ test effect fn testWriteP3() -> ()
   ! AssertionError<'static>
     | FileError
     | OutOfMemoryError
-    | LogError
     | PPMWriteError
     | bytemuck.PodCastError
     | WriterError {

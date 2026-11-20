@@ -1,7 +1,10 @@
-import silk.io.logger { LogError }
 import silk.core.effect { Effect }
 import silk.core.static_text { StaticText }
 import silk.io.logger_native { StdoutLogger }
+import silk.mem.allocator { Allocator, OutOfMemoryError }
+import silk.concurrency.sync { Arc }
+import silk.core.result { Result }
+import silk.io.logger { Logger, LogLevel }
 
 /// Sends one log message at `LogLevel.Info` to the `StdoutLogger`.
 ///
@@ -18,14 +21,31 @@ import silk.io.logger_native { StdoutLogger }
 /// # Errors
 ///
 /// - `LogError` if the `Logger` provider fails. This function does not buffer or retry.
-pub effect fn println<Args>(static template: string<'static>, args: &Args) -> ()
-  ! LogError {
+pub effect fn println<Args>(static template: string<'static>, args: &Args) -> () {
   // `\n` is one byte (10u8)
   let static newline_byte: u8 = 10 // `\n`
   static if StaticText.byteAt(template, StaticText.byteLength(template) - 1) != newline_byte {
-    let mut logger = StdoutLogger.make()
-    return run Effect.log(StaticText.concat(template, "\n"), args) |> Effect.provideMut(&mut logger)
+    let mut allocator = Allocator.systemAllocatorProvider()
+    let result = (run Effect.result(
+      Arc<StdoutLogger>.make(StdoutLogger.make()) |> Effect.provideMut<Allocator>(&mut allocator),
+    ))
+    match move result {
+      Result<Arc<StdoutLogger>, OutOfMemoryError>.Success { value: logger } => {
+        run Logger.log(LogLevel.Info, StaticText.concat(template, "\n"), args)
+          |> Effect.provideAmbient<Logger>(&logger)
+      }
+      Result<Arc<StdoutLogger>, OutOfMemoryError>.Failure { .. } => {}
+    }
+    return ()
   }
-  let mut logger = StdoutLogger.make()
-  return run Effect.log(template, args) |> Effect.provideMut(&mut logger)
+  let mut allocator = Allocator.systemAllocatorProvider()
+  let result = (run Effect.result(
+    Arc<StdoutLogger>.make(StdoutLogger.make()) |> Effect.provideMut<Allocator>(&mut allocator),
+  ))
+  match move result {
+    Result<Arc<StdoutLogger>, OutOfMemoryError>.Success { value: logger } => {
+      run Logger.log(LogLevel.Info, template, args) |> Effect.provideAmbient<Logger>(&logger)
+    }
+    Result<Arc<StdoutLogger>, OutOfMemoryError>.Failure { .. } => {}
+  }
 }

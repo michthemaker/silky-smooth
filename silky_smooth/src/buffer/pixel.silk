@@ -6,7 +6,6 @@ import silk.num.u8
 import silk.num.usize
 import silk.num.u16
 import silk.core.equal { Equal }
-import silk.io.logger { LogError }
 import silk.text.string { String }
 import silk.core.bool
 import lib.std.testing { AssertionError }
@@ -394,7 +393,7 @@ test effect fn testPixelEquality() -> ()
 }
 
 test effect fn testPixelConversions() -> ()
-  ! AssertionError<'static> | LogError {
+  ! AssertionError<'static> {
   let pixel = Pixel(220, 20, 60, 255)
   let pixel_value: u32 = 0xdc133cff
 
@@ -414,7 +413,7 @@ test effect fn testPixelConversions() -> ()
 }
 
 test effect fn testPixelFromHex() -> ()
-  ! AssertionError<'static> | LogError {
+  ! AssertionError<'static> {
   let pixel = Pixel.fromHex("#dc143c00").unwrapOr(Default.default<Pixel>())
 
   run testing.expect(&pixel == &Pixel.fromU32(0xdc143c00), "Not the same pixel")
@@ -423,7 +422,7 @@ test effect fn testPixelFromHex() -> ()
 }
 
 test effect fn testPremultipliedPixel() -> ()
-  ! AssertionError<'static> | LogError {
+  ! AssertionError<'static> {
   run testing.expectToFail(PremultipliedPixel.fromPremultiplied(24, 102, 29, 100))
   let premuled = from<PremultipliedPixel>(&Pixel(24, 99, 29, 255))
   run testing.expect(

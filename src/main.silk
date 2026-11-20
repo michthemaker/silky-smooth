@@ -1,10 +1,8 @@
 import silky_smooth.lib.std.u128 { u128, MAX }
 import silky_smooth.lib.std { println }
-import silk.io.logger { LogError }
 import silk.num.u64
 
-pub effect fn main() -> ()
-  ! LogError {
+pub effect fn main() -> () {
   let zero = u128.fromU32(0)
   let seven = u128.fromU32(7)
   let five = u128.fromU32(5)
@@ -14,6 +12,7 @@ pub effect fn main() -> ()
   let two127 = u128.make(0x8000_0000_0000_0000, 0)
   let big = u128.make(0xDEAD_BEEF, 0xCAFE_BABE_1234_5678)
   let e20 = u128.make(5, 7766279631452241920)
+  run println("check {}", &.(99))
 
   // Decimal digit counts and limb boundaries
   // 7 100 12345 123456 18446744073709551615 18446744073709551616

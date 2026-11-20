@@ -1,7 +1,7 @@
-import silk.system.system_clock { SystemClock }
 import silk.core.option { Option }
 import silk.num.u64
 import silk.num.i64
+import silk.num.u32
 import lib.std.u128 { u128 }
 import lib.std.convert { from }
 import silk.num.numeric { Numeric }
@@ -18,10 +18,10 @@ pub struct Instant {
 
 impl Instant {
   pub fn now() -> Instant {
-    let system_clock_instant = run NativeClock.now(false)
+    let system_clock_instant = run NativeClock.now()
     return Instant {
-      seconds: SystemClock.seconds(&system_clock_instant),
-      nanoseconds: SystemClock.nanoseconds(&system_clock_instant),
+      seconds: system_clock_instant.seconds(),
+      nanoseconds: u32.toI64(system_clock_instant.subsecondNanoseconds()),
     }
   }
 
