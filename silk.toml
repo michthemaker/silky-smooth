@@ -1,14 +1,13 @@
 [package]
 name = "silky_smooth_top_level"
 version = "0.1.0"
-silk-version = "0.1.0-dev.87+37fa5f8857de"
 description = "Graphics Library for Silk"
 license = "MIT"
 readme = "README.md"
 
 [workspace]
 members = ["silky_smooth"]
-silk-version = "0.1.0-dev.87+37fa5f8857de"
+silk-version = "0.1.0-dev.94+93906b8028e6"
 
 [dependencies]
 silky_smooth = { path = "./silky_smooth", package = "silky_smooth" }
