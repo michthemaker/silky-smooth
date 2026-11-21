@@ -1,8 +1,8 @@
 import silky_smooth.lib.std.u128 { u128, MAX }
-import silky_smooth.lib.std { println }
+import silky_smooth.lib.std { println, Instant }
 import silk.num.u64
 
-pub effect fn main() -> () {
+pub effect fn check_u128() -> () {
   let zero = u128.fromU32(0)
   let seven = u128.fromU32(7)
   let five = u128.fromU32(5)
@@ -12,11 +12,11 @@ pub effect fn main() -> () {
   let two127 = u128.make(0x8000_0000_0000_0000, 0)
   let big = u128.make(0xDEAD_BEEF, 0xCAFE_BABE_1234_5678)
   let e20 = u128.make(5, 7766279631452241920)
-  run println("check {}", &.(99))
+  println("check {}", &.(99))
 
   // Decimal digit counts and limb boundaries
   // 7 100 12345 123456 18446744073709551615 18446744073709551616
-  run println(
+  println(
     "{:?} {:?} {:?} {:?} {:?} {:?}",
     &.(
       seven,
@@ -30,18 +30,18 @@ pub effect fn main() -> () {
 
   // 10000000000000000000 100000000000000000000 100000000000000000001
 
-  run println(
+  println(
     "{:?} {:?} {:?}",
     &.(u128.fromU64(10_000_000_000_000_000_000), e20, u128.make(5, 7766279631452241921)),
   )
 
   // 170141183460469231731687303715884105728 340282366920938463463374607431768211455
 
-  run println("{:?} {:?}", &.(two127, MAX))
+  println("{:?} {:?}", &.(two127, MAX))
 
   // Arithmetic feeding the printer
   // 340282366920938463426481119284349108225 340282366920938463463374607431768211454 18446744073709551616
-  run println(
+  println(
     "{:?} {:?} {:?}",
     &.(
       u128.multiply(u128.fromU64(u64.MAX), u128.fromU64(u64.MAX)),
@@ -52,44 +52,49 @@ pub effect fn main() -> () {
 
   // Width, fill, alignment
   // [   42] [42   ] [ 42  ] [  42  ] [****42] [42****] [**42***] [42]
-  run println(
+  println(
     "[{:5}] [{:<5}] [{:^5}] [{:^6}] [{:*>6}] [{:*<6}] [{:*^7}] [{:1}] yeah",
     &.(n, n, n, n, n, n, n, n),
   )
 
   // Zero pad, sign, width wider than the digits
   // [00000042] [+42] [+0000042] [ 340282366920938463463374607431768211455]
-  run println("[{:08}] [{:+}] [{:+08}] [{:>40}]", &.(n, n, n, MAX))
+  println("[{:08}] [{:+}] [{:+08}] [{:>40}]", &.(n, n, n, MAX))
 
   // ff FF 0xff 0xFF 377 0o377 11111111 0b11111111
   // Radix styles and prefixes
-  run println("{:x} {:X} {:#x} {:#X} {:o} {:#o} {:b} {:#b}", &.(f, f, f, f, f, f, f, f))
+  println("{:x} {:X} {:#x} {:#X} {:o} {:#o} {:b} {:#b}", &.(f, f, f, f, f, f, f, f))
 
   // 0 0 0 0x0 0b0
-  run println("{:x} {:o} {:b} {:#x} {:#b}", &.(zero, zero, zero, zero, zero))
+  println("{:x} {:o} {:b} {:#x} {:#b}", &.(zero, zero, zero, zero, zero))
 
   // [    ff] [0xff  ] [0x000000ff] [0b00000101] [  0xFF  ]
 
-  run println("[{:>6x}] [{:<#6x}] [{:#010x}] [{:#010b}] [{:^#8X}]", &.(f, f, f, five, f))
+  println("[{:>6x}] [{:<#6x}] [{:#010x}] [{:#010b}] [{:^#8X}]", &.(f, f, f, five, f))
 
   // Precision as minimum digits (Silk rule); `0` flag is dropped when precision is set
   // [007] [12345] [     007] [     007] [0] [0x00ff]
-  run println(
+  println(
     "[{:.3}] [{:.3}] [{:8.3}] [{:08.3}] [{:.0}] [{:#.4x}]",
     &.(seven, u128.fromU32(12345), seven, seven, zero, f),
   )
 
   // Radix across the limb boundary
   // deadbeefcafebabe12345678 DEADBEEFCAFEBABE12345678 10000000000000000
-  run println("{:x} {:X} {:x}", &.(big, big, two64))
+  println("{:x} {:X} {:x}", &.(big, big, two64))
 
   // 32 f's | 3 then 42 sevens | 2 then 21 zeros
-  run println("{:x} {:o} {:o}", &.(MAX, MAX, two64))
+  println("{:x} {:o} {:o}", &.(MAX, MAX, two64))
 
   // 128 ones | 1 then 127 zeros
-  run println("{:b} {:b}", &.(MAX, two127))
+  println("{:b} {:b}", &.(MAX, two127))
 
   // Display and Debug agree
-  run println("[{}] [{:?}] [{:#?}] [{:5?}] [{:<5?}]", &.(n, n, n, n, n))
+  println("[{}] [{:?}] [{:#?}] [{:5?}] [{:<5?}]", &.(n, n, n, n, n))
   // [42] [42] [42] [   42] [42   ]
+}
+
+pub fn main() -> () {
+  let instant = Instant.now()
+  println("{}", &.(instant))
 }

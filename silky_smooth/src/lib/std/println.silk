@@ -21,7 +21,7 @@ import silk.io.logger { Logger, LogLevel }
 /// # Errors
 ///
 /// - `LogError` if the `Logger` provider fails. This function does not buffer or retry.
-pub effect fn println<Args>(static template: string<'static>, args: &Args) -> () {
+pub fn println<Args>(static template: string<'static>, args: &Args) -> () {
   // `\n` is one byte (10u8)
   let static newline_byte: u8 = 10 // `\n`
   static if StaticText.byteAt(template, StaticText.byteLength(template) - 1) != newline_byte {
