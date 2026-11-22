@@ -7,7 +7,7 @@ readme = "README.md"
 
 [workspace]
 members = ["silky_smooth"]
-silk-version = "0.1.0-dev.96"
+silk-version = "0.1.0-dev.99"
 
 [dependencies]
 silky_smooth = { path = "./silky_smooth", package = "silky_smooth" }

@@ -63,7 +63,7 @@ pub effect fn writeP7(width: u32, height: u32, pixel_grid: &[Pixel]) -> ()
     header_bytes,
     FileSystem.operationCode(FileSystem.writeFileOperation()),
   )
-  run println("wrote header in: {:?}ms", &.(instant.elapsed().asMillis()))
+  println("wrote header in: {:?}ms", &.(instant.elapsed().asMillis()))
   instant = Instant.now()
 
   // write the samples
@@ -72,7 +72,7 @@ pub effect fn writeP7(width: u32, height: u32, pixel_grid: &[Pixel]) -> ()
     pixel_bytes,
     FileSystem.operationCode(FileSystem.writeFileOperation()),
   )
-  run println("wrote samples in: {:?}ms", &.(instant.elapsed().asMillis()))
+  println("wrote samples in: {:?}ms", &.(instant.elapsed().asMillis()))
   run NativeFileSystem.closeFile(move file_handle, FileSystem.writeFileOperation())
 }
 

@@ -1,7 +1,7 @@
 import silk.core.effect { Effect }
 import silk.core.static_text { StaticText }
 import silk.io.logger_native { StdoutLogger }
-import silk.mem.allocator { Allocator, OutOfMemoryError }
+import silk.mem.allocator { OutOfMemoryError }
 import silk.concurrency.sync { Arc }
 import silk.core.result { Result }
 import silk.io.logger { Logger, LogLevel }
@@ -25,10 +25,7 @@ pub fn println<Args>(static template: string<'static>, args: &Args) -> () {
   // `\n` is one byte (10u8)
   let static newline_byte: u8 = 10 // `\n`
   static if StaticText.byteAt(template, StaticText.byteLength(template) - 1) != newline_byte {
-    let mut allocator = Allocator.systemAllocatorProvider()
-    let result = (run Effect.result(
-      Arc<StdoutLogger>.make(StdoutLogger.make()) |> Effect.provideMut<Allocator>(&mut allocator),
-    ))
+    let result = (run Effect.result(StdoutLogger.shared()))
     match move result {
       Result<Arc<StdoutLogger>, OutOfMemoryError>.Success { value: logger } => {
         run Logger.log(LogLevel.Info, StaticText.concat(template, "\n"), args)
@@ -38,10 +35,7 @@ pub fn println<Args>(static template: string<'static>, args: &Args) -> () {
     }
     return ()
   }
-  let mut allocator = Allocator.systemAllocatorProvider()
-  let result = (run Effect.result(
-    Arc<StdoutLogger>.make(StdoutLogger.make()) |> Effect.provideMut<Allocator>(&mut allocator),
-  ))
+  let result = run Effect.result(StdoutLogger.shared())
   match move result {
     Result<Arc<StdoutLogger>, OutOfMemoryError>.Success { value: logger } => {
       run Logger.log(LogLevel.Info, template, args) |> Effect.provideAmbient<Logger>(&logger)

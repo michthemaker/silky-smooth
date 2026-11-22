@@ -25,7 +25,7 @@ impl Range {
 /// ```silk
 /// let mut iter = range(0, 5)
 /// while let Step.Index { i } = move iter.next() {
-///  run println("{}", &.(i))
+///  println("{}", &.(i))
 /// }
 /// ```
 pub fn range(start: usize, end: usize) -> Range {
