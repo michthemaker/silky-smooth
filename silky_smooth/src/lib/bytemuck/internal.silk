@@ -4,6 +4,48 @@ import silk.mem.pointer { Pointer }
 import silk.num.usize
 import lib.bytemuck.pod { PodCastError }
 
+/// Reinterprets `&'a A` as `&'a B`.
+///
+/// ## Errors
+///
+/// - If the reference isn't aligned in the new type
+/// - If the source type and target type aren't the same size.
+pub effect fn castRef<'a, B: Copy, A: Copy>(a: &'a A) -> &'a B
+  ! PodCastError {
+  let input_as_ptr = Pointer.fromRef(a)
+  if alignOf<B>() > alignOf<A>() && !(isAlignedTo(input_as_ptr, alignOf<B>())) {
+    fail PodCastError.TargetAlignmentGreaterAndInputNotAligned
+  } else if sizeOf<B>() == sizeOf<A>() {
+    unsafe {
+      let reinterpreted_ptr = Intrinsic.pointerReinterpret<*const A, *const B>(input_as_ptr)
+      return Intrinsic.pointerBorrow<A, B>(a, reinterpreted_ptr)
+    }
+  } else {
+    fail PodCastError.SizeMismatch
+  }
+}
+
+/// Reinterprets `&'a mut A` as `&'a mut B`.
+///
+/// ## Errors
+///
+/// - If the mutable reference isn't aligned in the new type
+/// - If the source type and target type aren't the same size.
+pub effect fn castMut<'a, B: Copy, A: Copy>(a: &'a mut A) -> &'a mut B
+  ! PodCastError {
+  let input_as_ptr = Pointer.fromMutRef(&mut a)
+  if alignOf<B>() > alignOf<A>() && !(isAlignedTo(input_as_ptr, alignOf<B>())) {
+    fail PodCastError.TargetAlignmentGreaterAndInputNotAligned
+  } else if sizeOf<B>() == sizeOf<A>() {
+    unsafe {
+      let reinterpreted_ptr = Intrinsic.pointerReinterpret<*mut A, *mut B>(input_as_ptr)
+      return Intrinsic.pointerBorrowMut<A, B>(a, reinterpreted_ptr)
+    }
+  } else {
+    fail PodCastError.SizeMismatch
+  }
+}
+
 /// Reinterprets `&'a [A]` as `&'a [B]` over the same bytes; the output length is
 /// `a.length * sizeOf<A>() / sizeOf<B>()`.
 ///
@@ -88,6 +130,7 @@ pub effect fn castMutSlice<'a, B: Copy, A: Copy>(a: &'a mut [A]) -> &'a mut [B]
   }
 }
 
+/// Returns `true` if `ptr` is aligned to `align`.
 pub fn isAlignedTo<T>(ptr: ?*const T, align: usize) -> bool {
   if align == 0 || (align & (align - 1)) != 0 {
     Intrinsic.trap("alignment must be a non-zero power of two")
@@ -96,7 +139,10 @@ pub fn isAlignedTo<T>(ptr: ?*const T, align: usize) -> bool {
   return Pointer.address<T>(ptr) % align == 0
 }
 
-/// `isAlignedTo` but for slice types
+/// Returns `true` if `ptr` is aligned to `align`.
+///
+/// # Details
+/// Works like [`isAlignedTo`] but for a pointer to a slice.
 pub fn isAlignedTo_Many<T>(ptr: ?[*]const T, align: usize) -> bool {
   if align == 0 || (align & (align - 1)) != 0 {
     Intrinsic.trap("alignment must be a non-zero power of two")
@@ -105,10 +151,12 @@ pub fn isAlignedTo_Many<T>(ptr: ?[*]const T, align: usize) -> bool {
   return Pointer.addressMany<T>(ptr) % align == 0
 }
 
+/// Returns number of bytes of type `T`
 pub fn sizeOf<T>() -> usize {
   return Layout.of<T>().bytes
 }
 
+/// Returns alignment of type `T`
 pub fn alignOf<T>() -> usize {
   return Layout.of<T>().alignment
 }

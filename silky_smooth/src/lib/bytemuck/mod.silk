@@ -4,6 +4,8 @@ pub import lib.bytemuck.internal {
   isAlignedTo_Many,
   sizeOf,
   alignOf,
+  castRef,
+  castMut,
   castSlice,
   castMutSlice
 }
