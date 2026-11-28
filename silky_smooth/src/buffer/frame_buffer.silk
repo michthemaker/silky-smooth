@@ -1,27 +1,27 @@
 import buffer.pixel { Pixel }
-import lib.std.testing { AssertionError }
-import silk.mem.allocator { Allocator, OutOfMemoryError }
-import silk.num.u32
-import silk.num.usize
-import lib.std.testing
-import silk.core.effect { Effect }
-import silk.system.filesystem_native { OsFileSystem }
-import silk.system.filesystem { FileError, Path, FileSystem }
-import silk.text.format { Format, Debug, Formatter }
-import silk.io.writer { WriterError, Writer }
-import silk.collections.list { List }
 import lib.std.time { Instant }
 import lib.std.println { println }
 import lib.std.format { format }
+import lib.std.convert { from }
+import lib.std.u128 { u128 }
 import lib.bytemuck
+import lib.std.testing
+import silk.num.u32
+import silk.num.usize
+import silk.system.filesystem { FileError, Path, FileSystem }
+import silk.text.format { Format, Debug, Formatter }
+import silk.io.writer { WriterError, Writer }
+import silk.mem.allocator { Allocator, OutOfMemoryError }
+import silk.collections.list { List }
 import silk.platform.native.filesystem { NativeFileSystem }
+import silk.mem.allocator { Allocator, OutOfMemoryError }
+import silk.core.effect { Effect }
 
 pub struct PPMWriteError {
   message: string<'static>
 }
 
 impl Debug for PPMWriteError {
-  /// Writes `PPMWritError`.
   effect fn debug(self: &Self, formatter: &mut Formatter) -> ()
     ! WriterError
     ? &mut Writer {
@@ -76,28 +76,34 @@ pub effect fn writeP7(width: u32, height: u32, pixel_grid: &[Pixel]) -> ()
   run NativeFileSystem.closeFile(move file_handle, FileSystem.writeFileOperation())
 }
 
-test effect fn testWriteP3() -> ()
-  ! AssertionError<'static>
-    | FileError
-    | OutOfMemoryError
-    | PPMWriteError
-    | bytemuck.PodCastError
-    | WriterError {
-  let mut allocator = Allocator.systemAllocatorProvider()
-  let mut files = run OsFileSystem.make("/") |> Effect.provideMut(&mut allocator)
-  let mut pixels = run List<Pixel>.makeWithCapacity(3840 * 2160)
-    |> Effect.provideMut(&mut allocator)
-  run pixels.appendRepeated(Pixel.opaque(255, 0, 0), 3840 * 2160)
-    |> Effect.provideMut(&mut allocator)
+pub struct Framebuffer {
+  width: u32,
+  height: u32,
+  buffer: List<Pixel>
+}
 
-  run writeP7(3840, 2160, pixels.asSlice())
-    |> Effect.provideMut(&mut files)
-    |> Effect.provideMut(&mut allocator)
-  let project = run Path.make("/home/mich/Projects/silky_smooth/out")
-    |> Effect.provideMut(&mut allocator)
+impl Framebuffer {
+  pub effect fn new(w: u32, h: u32) -> Framebuffer
+    ! OutOfMemoryError {
+    let mut allocator = Allocator.systemAllocatorProvider()
+    let buffer: List<Pixel> = run List<Pixel>.makeWithCapacity(
+      u32.toUsize(from<u32>(from<u128>(w) * from<u128>(h))),
+    )
+      |> Effect.provideMut<Allocator>(&mut allocator)
+    return Framebuffer { width: move w, height: move h, buffer: move buffer }
+  }
+}
 
-  let ppm_file = run Path.join(&project, "out.ppm") |> Effect.provideMut(&mut allocator)
+impl Debug for Framebuffer {
+  effect fn debug(self: &Framebuffer, formatter: &mut Formatter) -> ()
+    ! WriterError
+    ? &mut Writer {
+    run Format.debugFields(self, "Framebuffer", &mut formatter)
+  }
+}
 
-  let check = run FileSystem.exists(&ppm_file) |> Effect.provideMut(&mut files)
-  run testing.expect(check == true, "out.ppm file wasn't made")
+test effect fn testFrameBuffer() -> ()
+  ! testing.AssertionError<'static> | OutOfMemoryError {
+  println("{:?}", &.(run Framebuffer.new(9, 10)))
+  // run testing.expect( == 42, "double(21) is 42")
 }

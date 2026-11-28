@@ -15,7 +15,7 @@
 //! # Examples
 //! ## Check a condition in a test function
 //! ```silk
-//! import lib.testing
+//! import lib.std.testing
 //!
 //! fn double(value: i32) -> i32 {
 //!   return value * 2
